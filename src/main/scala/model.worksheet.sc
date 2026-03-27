@@ -13,6 +13,7 @@
 // Punkte werden berechnet mit Chips * Mult
 // Es gibt Basischips durch die Kombinationen, Chips durch den Becher und Chips durch die Würfel
 // Es gibt Basemult durch die Kombinationen, Mult durch den Becher und Mult durch die Würfel
+import scala.util.Random
 
 enum BonusType:
   case Chips, Mult, Money, None
@@ -35,8 +36,14 @@ case class Die(
     min: Int = 1,
     max: Int = 6,
     bonusType: BonusType,
-    bonusValue: Int = 0
-)
+    bonusValue: Int
+): 
+    def roll: Int = Random.nextInt(max - min + 1) + min
+    def eval(state: GameState): (Int, GameState) = bonusType match
+        case BonusType.None => return (roll, state)
+        case BonusType.Chips => return (roll + bonusValue, state)
+        case BonusType.Mult => return (roll * bonusValue, state)
+        case BonusType.Money => return (roll, state.addMoney(bonusValue))
 
 case class RolledDie(
     die: Die,
@@ -64,7 +71,7 @@ case class GameState(
     bag: List[Die],                     // Alle Würfel des Spielers -> quasi das Kartendeck
     availableDice: List[Die],           // Die vom Spieler gezogenen und verfügbaren Würfel
     rolledDice: List[RolledDie],        // Gewürfelte Würfel, welche der Spieler auf dem Spielfeld hat und aktuell mit diesen Interagiert
-    draftRow: List[Die],                // Eine noch unfertige Würfelreihe, an welcher der Spieler gerade arbeitet
+    draftRow: List[RolledDie],                // Eine noch unfertige Würfelreihe, an welcher der Spieler gerade arbeitet
     lockedRows: List[LockedRow],        // Die festgelegten Würfelreihen, welche bereits gezählt wurden
     cupgrades: List[Cupgrade],          // Upgrades des Würfelbechers, welche on top beim Scoren einer fertig gestellten Würfelphase extra Boni geben
     rerollsLeft: Int,                   // Anzahl, wie oft der Spieler noch Würfel wegschmeißen und neu ziehen kann
@@ -72,5 +79,32 @@ case class GameState(
     money: Int,                         // Geld des Spielers. Kann im Shop für upgrades ausgegeben werden
     usedCombinations: Set[Combination], // Bereits genutzte Kombinationen, welche nicht mehr erneut gewertet werden können
     phase: Phase                        // Aktuelle Phase des Spiels
+):
+    def addMoney(moneyAdded: Int): GameState = GameState(
+        bag = bag, availableDice = availableDice, rolledDice = rolledDice, draftRow = draftRow, lockedRows = lockedRows, cupgrades = cupgrades, rerollsLeft = rerollsLeft, targetScore = targetScore, money = money + moneyAdded, usedCombinations = usedCombinations, phase = phase
+    )
+val baseDie = Die(1, 6, BonusType.None, 0)
+val moneyDie = Die(1, 6, BonusType.Money, 5)
+val baseRolledDie = RolledDie(baseDie, baseDie.roll)
+val s = Score(2, 7)
+val baseLockedRow = LockedRow(List(baseRolledDie, baseRolledDie, baseRolledDie, baseRolledDie, baseRolledDie), Combination.Ones, s)
+val basicState = GameState(
+    bag = List(baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie),
+    availableDice = List(baseDie, baseDie, baseDie, baseDie, baseDie, baseDie),
+    rolledDice = List(baseRolledDie, baseRolledDie, baseRolledDie),
+    draftRow = List(baseRolledDie, baseRolledDie),
+    lockedRows = List(baseLockedRow, baseLockedRow),
+    cupgrades = List(),
+    rerollsLeft = 3,
+    targetScore = 1000,
+    money = 5,
+    usedCombinations = Set(Combination.Chance, Combination.FourOfAKind),
+    phase = Phase.Roll
 )
+
+baseDie.eval(basicState)
+moneyDie.eval(basicState)
+s.chips
+s.total
+
 
