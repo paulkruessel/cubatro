@@ -10,7 +10,7 @@
 
 def titleRow =
   "+---------------------------------------------+\n" +
-  "|                   CUBATROs                   |\n" +
+  "|                   CUBATRO                   |\n" +
   "+---------------------------------------------+\n"
 def scoreBoard = 
   "| Level Score: 5000       Current Score: 3000 |\n" +
