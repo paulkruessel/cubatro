@@ -1,4 +1,21 @@
 class MainTests extends munit.FunSuite {
+  test("main should print the full game UI") {
+    val out = new java.io.ByteArrayOutputStream()
+    Console.withOut(out) {
+      main()
+    }
+    val printed = out.toString("UTF-8")
+
+    assert(printed.contains("CUBATRO"))
+    assert(printed.contains("Level Score"))
+    assert(printed.contains("Cupgrades"))
+    assert(printed.contains("Locked Rows"))
+    assert(printed.contains("Chips x Mult"))
+    assert(printed.contains("Draft Row"))
+    assert(printed.contains("Rolled Dice"))
+    assert(printed.contains("Hand"))
+  }
+
   test("titleRow should contain CUBATRO") {
     assert(titleRow.contains("CUBATRO"))
   }

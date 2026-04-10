@@ -64,6 +64,15 @@ class ModelTest extends munit.FunSuite {
         assert(result >= 1 && result <= 6)
     }
 
+    test("Die should use default min and max values") {
+        val dieWithDefaults = Die(bonusType = BonusType.None, bonusValue = 0)
+        val result = dieWithDefaults.roll()
+
+        assertEquals(dieWithDefaults.min, 1)
+        assertEquals(dieWithDefaults.max, 6)
+        assert(result >= 1 && result <= 6)
+    }
+
     test("Die eval with None bonus should keep state and value in range") {
         val die = Die(1, 6, BonusType.None, 0)
         val state = baseState
