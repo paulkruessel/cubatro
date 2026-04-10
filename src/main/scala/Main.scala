@@ -1,4 +1,4 @@
-@main def hello(): Unit =
+@main def main(): Unit =
   print(titleRow)
   print(scoreBoard)
   print(upgradeBoard)
