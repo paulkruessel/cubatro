@@ -14,7 +14,7 @@ def titleRow =
   "+---------------------------------------------+\n"
 def scoreBoard = 
   "| Level Score: 5000       Current Score: 3000 |\n" +
-  "| Rerolls left: 2                 Money: $200 |\n" +
+  "| Rerolls left: 2                 Money: $300 |\n" +
   "+---------------------------------------------+\n"
 def upgradeBoard = 
   "|                  Cupgrades:                 |\n" +
