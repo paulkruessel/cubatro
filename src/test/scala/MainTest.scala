@@ -1,4 +1,7 @@
-class MainTests extends munit.FunSuite {
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
+
+class MainTests extends AnyFunSuite with Matchers {
   test("main should print the full game UI") {
     val out = new java.io.ByteArrayOutputStream()
     Console.withOut(out) {
@@ -6,71 +9,71 @@ class MainTests extends munit.FunSuite {
     }
     val printed = out.toString("UTF-8")
 
-    assert(printed.contains("CUBATRO"))
-    assert(printed.contains("Level Score"))
-    assert(printed.contains("Cupgrades"))
-    assert(printed.contains("Locked Rows"))
-    assert(printed.contains("Chips x Mult"))
-    assert(printed.contains("Draft Row"))
-    assert(printed.contains("Rolled Dice"))
-    assert(printed.contains("Hand"))
+    printed should include("CUBATRO")
+    printed should include("Level Score")
+    printed should include("Cupgrades")
+    printed should include("Locked Rows")
+    printed should include("Chips x Mult")
+    printed should include("Draft Row")
+    printed should include("Rolled Dice")
+    printed should include("Hand")
   }
 
   test("titleRow should contain CUBATRO") {
-    assert(titleRow.contains("CUBATRO"))
+    titleRow should include("CUBATRO")
   }
 
   test("titleRow should have borders") {
-    assert(titleRow.contains("+-----"))
+    titleRow should include("+-----")
   }
 
   test("scoreBoard should contain Level Score") {
-    assert(scoreBoard.contains("Level Score"))
+    scoreBoard should include("Level Score")
   }
 
   test("scoreBoard should contain Current Score") {
-    assert(scoreBoard.contains("Current Score"))
+    scoreBoard should include("Current Score")
   }
 
   test("upgradeBoard should contain Cupgrades") {
-    assert(upgradeBoard.contains("Cupgrades"))
+    upgradeBoard should include("Cupgrades")
   }
 
   test("upgradeBoard should list upgrades") {
-    assert(upgradeBoard.contains("Leather"))
-    assert(upgradeBoard.contains("Steel"))
-    assert(upgradeBoard.contains("Pocket Dimension"))
-    assert(upgradeBoard.contains("Blue Sticker"))
+    upgradeBoard should include("Leather")
+    upgradeBoard should include("Steel")
+    upgradeBoard should include("Pocket Dimension")
+    upgradeBoard should include("Blue Sticker")
   }
 
   test("lockedRows should contain Locked Rows") {
-    assert(lockedRows.contains("Locked Rows"))
+    lockedRows should include("Locked Rows")
   }
 
   test("draftScore should contain Chips x Mult") {
-    assert(draftScore.contains("Chips x Mult"))
+    draftScore should include("Chips x Mult")
   }
 
   test("draftRow should contain Draft Row") {
-    assert(draftRow.contains("Draft Row"))
+    draftRow should include("Draft Row")
   }
 
   test("rolledDice should contain Rolled Dice") {
-    assert(rolledDice.contains("Rolled Dice"))
+    rolledDice should include("Rolled Dice")
   }
 
   test("diceHand should contain Hand") {
-    assert(diceHand.contains("Hand"))
+    diceHand should include("Hand")
   }
 
   test("all functions should return non-empty strings") {
-    assert(titleRow.nonEmpty)
-    assert(scoreBoard.nonEmpty)
-    assert(upgradeBoard.nonEmpty)
-    assert(lockedRows.nonEmpty)
-    assert(draftScore.nonEmpty)
-    assert(draftRow.nonEmpty)
-    assert(rolledDice.nonEmpty)
-    assert(diceHand.nonEmpty)
+    titleRow.nonEmpty shouldBe true
+    scoreBoard.nonEmpty shouldBe true
+    upgradeBoard.nonEmpty shouldBe true
+    lockedRows.nonEmpty shouldBe true
+    draftScore.nonEmpty shouldBe true
+    draftRow.nonEmpty shouldBe true
+    rolledDice.nonEmpty shouldBe true
+    diceHand.nonEmpty shouldBe true
   }
 }
