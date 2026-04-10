@@ -1,0 +1,177 @@
+name: Scala CI
+
+on:
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  format-check:
+    name: Format check (warning only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: sbt
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Run Scalafmt check
+        shell: bash
+        run: |
+          set +e
+          sbt scalafmtCheckAll
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::warning::Scalafmt found formatting issues. Please format the code."
+          fi
+
+          exit 0
+
+  lint-check:
+    name: Lint check (warning only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: sbt
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Run Scalafix check
+        shell: bash
+        run: |
+          set +e
+          sbt "scalafix --check"
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::warning::Scalafix found code quality issues. Please review them."
+          fi
+
+          exit 0
+
+  branch-tests-and-diff-coverage:
+    name: Branch tests + changed-code coverage
+    if: github.ref_name != 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main for diff coverage
+        run: git fetch origin main:refs/remotes/origin/main
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: sbt
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install diff-cover
+        run: pip install diff-cover
+
+      - name: Run tests with coverage
+        shell: bash
+        run: |
+          sbt clean coverage test coverageReport
+
+      - name: Find cobertura report
+        id: coverage_file
+        shell: bash
+        run: |
+          FILE=$(find . -path "*/coverage-report/cobertura.xml" | head -n 1)
+
+          if [ -z "$FILE" ]; then
+            echo "::error::No cobertura.xml coverage report was generated."
+            exit 1
+          fi
+
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Check changed-line coverage (warning only)
+        shell: bash
+        run: |
+          set +e
+          diff-cover "${{ steps.coverage_file.outputs.file }}" \
+            --compare-branch=origin/main \
+            --fail-under=100
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::warning::Changed-code coverage is below 100% on this branch."
+          fi
+
+          exit 0
+
+  main-tests-and-full-coverage:
+    name: Main tests + full coverage
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: sbt
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Run full test suite with strict 100% coverage
+        shell: bash
+        run: |
+          sbt \
+            "set ThisBuild / coverageFailOnMinimum := true" \
+            "set ThisBuild / coverageMinimumStmtTotal := 100" \
+            "set ThisBuild / coverageMinimumBranchTotal := 100" \
+            clean coverage test coverageReport
