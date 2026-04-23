@@ -8,5 +8,16 @@ lazy val root = project
     scalaVersion := scala3Version,
 
     libraryDependencies += "org.scalactic" %% "scalactic" % "3.2.14",
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.14" % "test"
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.14" % "test",
+
+    // Enforce strict coverage quality gates.
+    coverageMinimumStmtTotal := 100,
+    coverageMinimumBranchTotal := 100,
+    coverageFailOnMinimum := true,
+    coverageHighlighting := true
   )
+
+addCommandAlias(
+  "testCoverageStrict",
+  ";clean;coverage;test;coverageReport;coverageAggregate"
+)
