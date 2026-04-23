@@ -95,7 +95,7 @@ case class GameState(
     phase: Phase                        // Aktuelle Phase des Spiels
 ):
     def addMoney(moneyAdded: Int): GameState = GameState(
-        bag = bag, availableDice = availableDice, rolledDice = rolledDice, draftRow = draftRow, lockedRows = lockedRows, cupgrades = cupgrades, rerollsLeft = rerollsLeft, targetScore = targetScore, money = money + moneyAdded, usedCombinations = usedCombinations, phase = phase
+        bag = bag, availableDice = availableDice, diceToRoll = diceToRoll, draftRow = draftRow, lockedRows = lockedRows, cupgrades = cupgrades, rerollsLeft = rerollsLeft, targetScore = targetScore, money = money + moneyAdded, usedCombinations = usedCombinations, phase = phase
     )
 val baseDie = Die(1, 6, BonusType.None, 0)
 val moneyDie = Die(1, 6, BonusType.Money, 5)
@@ -105,7 +105,7 @@ val baseLockedRow = LockedRow(List(baseRolledDie, baseRolledDie, baseRolledDie, 
 val basicState = GameState(
     bag = List(baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie, baseDie),
     availableDice = List(baseDie, baseDie, baseDie, baseDie, baseDie, baseDie),
-    rolledDice = List(baseRolledDie, baseRolledDie, baseRolledDie),
+    diceToRoll = List(baseRolledDie, baseRolledDie, baseRolledDie),
     draftRow = List(baseRolledDie, baseRolledDie),
     lockedRows = List(baseLockedRow, baseLockedRow),
     cupgrades = List(),
