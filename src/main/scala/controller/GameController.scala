@@ -75,6 +75,7 @@ class GameController extends Observable:
       val diceChips = oldState.diceInPlay.map(_.eval()._1).sum
       val diceMult = oldState.diceInPlay.map(_.eval()._2).sum
       val combination = matchingCombinations(oldState.diceInPlay).last
+      val combinations = matchingCombinations(oldState.diceInPlay)
       val extraScore = (diceChips + combination.chips) * (diceMult + combination.mult)
       val scored = oldState.copy(score = oldState.score + extraScore)
       val upgraded = oldState.cupgrades.foldLeft(scored)((s, c) => c.effect(s))
