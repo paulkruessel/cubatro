@@ -58,8 +58,11 @@ class TuiTest extends AnyWordSpec with Matchers {
     }
 
     "render empty sections" in {
-      val tui = new Tui(new GameController(), () => "quit", _ => ())
-      val output = tui.render(state())
+      val controller = new GameController()
+      setState(controller, state())
+
+      val tui = new Tui(controller, () => "quit", _ => ())
+      val output = tui.render(controller.viewState)
 
       output should include("Hand:\n-")
       output should include("Selected:\n-")
@@ -68,21 +71,26 @@ class TuiTest extends AnyWordSpec with Matchers {
     }
 
     "render non-empty hand selected in play and locked rows" in {
+      val controller = new GameController()
+
       val row = LockedRow(
         dice = List(RolledDie(plain, 6)),
         combination = Combination.Sixes,
         score = 43
       )
 
-      val output =
-        new Tui(new GameController(), () => "quit", _ => ()).render(
-          state(
-            available = List(plain, chip),
-            selected = List(chip),
-            inPlay = List(RolledDie(plain, 5)),
-            rows = List(row)
-          )
+      setState(
+        controller,
+        state(
+          available = List(plain, chip),
+          selected = List(chip),
+          inPlay = List(RolledDie(plain, 5)),
+          rows = List(row)
         )
+      )
+
+      val output =
+        new Tui(controller, () => "quit", _ => ()).render(controller.viewState)
 
       output should include("0:[d1-6]")
       output should include("1:[d1-6:+2C]")
@@ -113,19 +121,19 @@ class TuiTest extends AnyWordSpec with Matchers {
     "show prompts for all phases" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())
 
-      tui.prompt(Phase.Select) should include("Select phase")
-      tui.prompt(Phase.PickOut) should include("PickOut phase")
-      tui.prompt(Phase.Score) should include("Score phase")
-      tui.prompt(Phase.Draw) should include("Phase Draw")
+      tui.prompt("Select") should include("Select phase")
+      tui.prompt("PickOut") should include("PickOut phase")
+      tui.prompt("Score") should include("Score phase")
+      tui.prompt("Draw") should include("Phase Draw")
     }
 
     "show help for all phases" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())
 
-      tui.help(Phase.Select) should include("Select dice")
-      tui.help(Phase.PickOut) should include("reroll")
-      tui.help(Phase.Score) should include("score")
-      tui.help(Phase.Draw) should include("Commands")
+      tui.help("Select") should include("Select dice")
+      tui.help("PickOut") should include("reroll")
+      tui.help("Score") should include("score")
+      tui.help("Draw") should include("Commands")
     }
 
     "run and quit" in {
