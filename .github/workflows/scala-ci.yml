@@ -143,7 +143,7 @@ jobs:
       - name: Wait for SonarQube
         run: |
           echo "Waiting for SonarQube..."
-          for i in {1..90}; do
+          for i in {1..150}; do
             STATUS=$(curl -s http://localhost:9000/api/system/status | grep -oP '"status":"\K[^"]+' || true)
             echo "Status: ${STATUS:-not ready}"
 
@@ -160,18 +160,80 @@ jobs:
 
       - name: Initialize SonarQube admin password if needed
         run: |
-          set +e
+          set -e
 
-          HTTP_CODE=$(curl -s -o /tmp/change-password-response.txt -w "%{http_code}" \
+          echo "Checking SonarQube admin authentication..."
+
+          DEFAULT_HTTP_CODE=$(curl -s -o /tmp/default-auth-response.txt -w "%{http_code}" \
             -u admin:admin \
-            -X POST "http://localhost:9000/api/users/change_password" \
-            -d "login=admin" \
-            -d "previousPassword=admin" \
-            -d "password=${{ secrets.SONAR_ADMIN_PASSWORD }}")
+            "http://localhost:9000/api/users/search?login=admin")
 
-          echo "Password change HTTP code: $HTTP_CODE"
-          cat /tmp/change-password-response.txt || true
-          exit 0
+          CUSTOM_HTTP_CODE=$(curl -s -o /tmp/custom-auth-response.txt -w "%{http_code}" \
+            -u "admin:${{ secrets.SONAR_ADMIN_PASSWORD }}" \
+            "http://localhost:9000/api/users/search?login=admin")
+
+          echo "Default admin HTTP code: $DEFAULT_HTTP_CODE"
+          echo "Custom admin HTTP code: $CUSTOM_HTTP_CODE"
+
+          if [ "$CUSTOM_HTTP_CODE" = "200" ]; then
+            echo "Custom admin password already works."
+            exit 0
+          fi
+
+          if [ "$DEFAULT_HTTP_CODE" = "200" ]; then
+            echo "Changing default admin password..."
+
+            CHANGE_HTTP_CODE=$(curl -s -o /tmp/change-password-response.txt -w "%{http_code}" \
+              -u admin:admin \
+              -X POST "http://localhost:9000/api/users/change_password" \
+              --data-urlencode "login=admin" \
+              --data-urlencode "previousPassword=admin" \
+              --data-urlencode "password=${{ secrets.SONAR_ADMIN_PASSWORD }}")
+
+            echo "Password change HTTP code: $CHANGE_HTTP_CODE"
+            cat /tmp/change-password-response.txt || true
+
+            CUSTOM_HTTP_CODE_AFTER=$(curl -s -o /tmp/custom-auth-after-response.txt -w "%{http_code}" \
+              -u "admin:${{ secrets.SONAR_ADMIN_PASSWORD }}" \
+              "http://localhost:9000/api/users/search?login=admin")
+
+            echo "Custom admin HTTP code after change: $CUSTOM_HTTP_CODE_AFTER"
+
+            if [ "$CUSTOM_HTTP_CODE_AFTER" != "200" ]; then
+              echo "Custom admin password still does not work after password change."
+              exit 1
+            fi
+
+            echo "Custom admin password works now."
+            exit 0
+          fi
+
+          echo "Neither admin/admin nor SONAR_ADMIN_PASSWORD works."
+          echo "Your persistent SonarQube volume probably contains a different admin password."
+          exit 1
+
+      - name: Create SonarQube analysis token
+        id: sonar-token
+        run: |
+          set -e
+
+          TOKEN_NAME="github-actions-cubatro-${GITHUB_RUN_ID}"
+
+          RESPONSE=$(curl -s -u "admin:${{ secrets.SONAR_ADMIN_PASSWORD }}" \
+            -X POST "http://localhost:9000/api/user_tokens/generate" \
+            --data-urlencode "name=$TOKEN_NAME")
+
+          TOKEN=$(echo "$RESPONSE" | grep -oP '"token":"\K[^"]+')
+
+          if [ -z "$TOKEN" ]; then
+            echo "Could not create SonarQube token."
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "token_name=$TOKEN_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Run SonarQube analysis
         id: sonar
@@ -189,8 +251,7 @@ jobs:
             -Dsonar.tests=src/test/scala \
             -Dsonar.scala.coverage.reportPaths=target/scoverage-import/scoverage.xml \
             -Dsonar.host.url=http://localhost:9000 \
-            -Dsonar.login=admin \
-            -Dsonar.password="${{ secrets.SONAR_ADMIN_PASSWORD }}" \
+            -Dsonar.token="${{ steps.sonar-token.outputs.token }}" \
             -Dsonar.qualitygate.wait=true \
             -Dsonar.qualitygate.timeout=300
 
@@ -242,6 +303,14 @@ jobs:
             "color": "${COLOR}"
           }
           EOF
+
+      - name: Revoke temporary SonarQube analysis token
+        if: always() && steps.sonar-token.outputs.token_name != ''
+        run: |
+          curl -s -u "admin:${{ secrets.SONAR_ADMIN_PASSWORD }}" \
+            -X POST "http://localhost:9000/api/user_tokens/revoke" \
+            --data-urlencode "name=${{ steps.sonar-token.outputs.token_name }}" \
+            || true
 
       - name: Upload SonarQube badge data
         uses: actions/upload-artifact@v4
