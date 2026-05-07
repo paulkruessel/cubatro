@@ -1,4 +1,4 @@
-![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/paulkrussel/cubatro/main/badges/coverage.json)
+![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/paulkruessel/cubatro/main/badges/coverage.json)
 
 ## sbt project compiled with Scala 3
 
