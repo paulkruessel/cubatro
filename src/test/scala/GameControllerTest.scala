@@ -153,5 +153,171 @@ class GameControllerTest extends AnyWordSpec with Matchers {
 
       controller.handle(GameCommand.Help).isLeft shouldBe true
     }
+
+    // Tests for GameController methods (migrated from ModelTest.scala)
+    "select dice from available dice" in {
+      val controller = new GameController()
+      val initialState = baseState(Phase.Select).copy(
+        availableDice = List(plain, plain, plain)
+      )
+      setState(controller, initialState)
+      
+      val state = controller.selectDice(initialState, List(0, 1))
+      state.availableDice.length shouldBe 1
+      state.selectedDice.length shouldBe 2
+    }
+
+    "ignore invalid selection indices" in {
+      val controller = new GameController()
+      val initialState = baseState(Phase.Select).copy(
+        availableDice = List(plain, plain, plain)
+      )
+      setState(controller, initialState)
+      
+      controller.selectDice(initialState, List(999)) shouldBe initialState
+    }
+
+    "move selected dice to play" in {
+      val controller = new GameController()
+      val withSelected = baseState(Phase.Select).copy(
+        selectedDice = List(plain, plain)
+      )
+      setState(controller, withSelected)
+      
+      val played = controller.addDiceToPlay(withSelected)
+
+      played.selectedDice shouldBe Nil
+      played.diceInPlay.length shouldBe 2
+    }
+
+    "not move dice to play if no dice are selected" in {
+      val controller = new GameController()
+      val initialState = baseState(Phase.Select)
+      setState(controller, initialState)
+      
+      controller.addDiceToPlay(initialState) shouldBe initialState
+    }
+
+    "discard selected dice and reduce discards" in {
+      val controller = new GameController()
+      val withSelected = baseState(Phase.Select).copy(
+        selectedDice = List(plain),
+        discards = 4
+      )
+      setState(controller, withSelected)
+      
+      val selected = controller.selectDice(withSelected, List(0))
+      val discarded = controller.discardDice(withSelected)
+
+      discarded.discards shouldBe 3
+      discarded.selectedDice shouldBe Nil
+    }
+
+    "not discard if nothing selected or no discards left" in {
+      val controller = new GameController()
+      val state1 = baseState(Phase.Select)
+      val state2 = baseState(Phase.Select).copy(selectedDice = List(plain), discards = 0)
+      setState(controller, state1)
+      
+      controller.discardDice(state1) shouldBe state1
+      controller.discardDice(state2) shouldBe state2
+    }
+
+    "select played dice for reroll" in {
+      val controller = new GameController()
+      val state = baseState(Phase.PickOut).copy(
+        diceInPlay = List(
+          RolledDie(plain, 1),
+          RolledDie(plain, 2)
+        )
+      )
+      setState(controller, state)
+
+      val selected = controller.selectPlayedDice(state, List(0))
+
+      selected.diceInPlay.length shouldBe 1
+      selected.diceToRoll.length shouldBe 1
+    }
+
+    "ignore invalid played dice indices" in {
+      val controller = new GameController()
+      val state = baseState(Phase.PickOut)
+      setState(controller, state)
+      
+      controller.selectPlayedDice(state, List(999)) shouldBe state
+    }
+
+    "reroll selected dice" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Roll).copy(
+        diceToRoll = List(RolledDie(plain, 1)),
+        rerolls = 2
+      )
+      setState(controller, state)
+
+      val rolled = controller.rollDice(state)
+
+      rolled.diceToRoll shouldBe Nil
+      rolled.diceInPlay.length shouldBe 1
+      rolled.rerolls shouldBe 1
+    }
+
+    "not reroll without rerolls or dice to roll" in {
+      val controller = new GameController()
+      val noRerolls = baseState(Phase.Roll).copy(
+        rerolls = 0,
+        diceToRoll = List(RolledDie(plain, 1))
+      )
+      val noDiceToRoll = baseState(Phase.Roll).copy(
+        rerolls = 2,
+        diceToRoll = Nil
+      )
+      setState(controller, noRerolls)
+
+      controller.rollDice(noRerolls) shouldBe noRerolls
+      controller.rollDice(noDiceToRoll) shouldBe noDiceToRoll
+    }
+
+    "score dice in play and create locked row" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Score).copy(
+        diceInPlay = List(
+          RolledDie(plain, 6),
+          RolledDie(plain, 6),
+          RolledDie(plain, 1)
+        )
+      )
+      setState(controller, state)
+
+      val scored = controller.scoreDiceInPlay(state)
+
+      scored.score should be > 0
+      scored.lockedRows.length shouldBe 1
+      scored.diceInPlay shouldBe Nil
+    }
+
+    "score dice with cupgrade effect" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Score).copy(
+        diceInPlay = List(
+          RolledDie(plain, 6),
+          RolledDie(plain, 6)
+        ),
+        cupgrades = List(Cupgrade("bonus", s => s.copy(score = s.score + 10)))
+      )
+      setState(controller, state)
+
+      val scored = controller.scoreDiceInPlay(state)
+
+      scored.score should be > 10
+    }
+
+    "not score empty dice list" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Score)
+      setState(controller, state)
+      
+      controller.scoreDiceInPlay(state) shouldBe state
+    }
   }
 }
