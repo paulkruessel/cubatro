@@ -1,4 +1,4 @@
-# .github/workflows/ci.yml
+# .github/workflows/scala-ci.yml
 
 name: Test and Coverage
 
@@ -8,6 +8,9 @@ on:
       - main
       - master
   pull_request:
+
+permissions:
+  contents: write
 
 jobs:
   test:
@@ -28,10 +31,61 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Run tests with coverage
-        run: sbt clean coverage test coverageReport
+        id: coverage
+        continue-on-error: true
+        run: |
+          sbt clean coverage test coverageReport
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+      - name: Create coverage badge data
+        run: |
+          mkdir -p badges
+
+          TEST_EXIT_CODE="${{ steps.coverage.outputs.exit_code }}"
+
+          if [ "$TEST_EXIT_CODE" != "0" ]; then
+            cat > badges/coverage.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "coverage",
+            "message": "failed",
+            "color": "red"
+          }
+          EOF
+            exit 0
+          fi
+
+          COVERAGE=$(grep -oP 'statement-rate="\K[0-9.]+' target/scala-*/scoverage-report/scoverage.xml | head -1)
+
+          if [ -z "$COVERAGE" ]; then
+            PERCENT="unknown"
+            COLOR="red"
+          else
+            PERCENT=$(awk "BEGIN { printf \"%.0f\", $COVERAGE * 100 }")
+
+            if [ "$PERCENT" -eq 100 ]; then
+              COLOR="brightgreen"
+            else
+              COLOR="yellow"
+            fi
+          fi
+
+          cat > badges/coverage.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "coverage",
+            "message": "${PERCENT}%",
+            "color": "${COLOR}"
+          }
+          EOF
+
+      - name: Commit coverage badge data
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          name: coverage-report
-          path: target/scala-*/scoverage-report/
+          commit_message: Update coverage badge
+          file_pattern: badges/coverage.json
+
+      - name: Fail workflow if tests failed
+        if: steps.coverage.outputs.exit_code != '0'
+        run: exit 1
