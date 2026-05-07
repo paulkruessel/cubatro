@@ -1,6 +1,4 @@
-# .github/workflows/scala-ci.yml
-
-name: Test and Coverage
+name: Test, Coverage and SonarQube
 
 on:
   push:
@@ -13,8 +11,11 @@ permissions:
   contents: write
 
 jobs:
-  test:
+  test-and-coverage:
     runs-on: ubuntu-latest
+
+    outputs:
+      test_exit_code: ${{ steps.coverage.outputs.exit_code }}
 
     steps:
       - name: Checkout repository
@@ -43,9 +44,9 @@ jobs:
       - name: Create coverage badge data
         run: |
           mkdir -p badges
-      
+
           TEST_EXIT_CODE="${{ steps.coverage.outputs.exit_code }}"
-      
+
           if [ "$TEST_EXIT_CODE" != "0" ]; then
             cat > badges/coverage.json <<EOF
           {
@@ -57,9 +58,9 @@ jobs:
           EOF
             exit 0
           fi
-      
+
           RAW_COVERAGE=$(grep -oP 'statement-rate="\K[0-9.]+' target/scala-*/scoverage-report/scoverage.xml | head -1)
-      
+
           if [ -z "$RAW_COVERAGE" ]; then
             PERCENT="unknown"
             COLOR="red"
@@ -71,14 +72,14 @@ jobs:
                 printf \"%.0f\", $RAW_COVERAGE
               }
             }")
-      
+
             if [ "$PERCENT" -eq 100 ]; then
               COLOR="brightgreen"
             else
               COLOR="yellow"
             fi
           fi
-      
+
           cat > badges/coverage.json <<EOF
           {
             "schemaVersion": 1,
@@ -88,13 +89,215 @@ jobs:
           }
           EOF
 
-      - name: Commit coverage badge data
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      - name: Upload coverage report for SonarQube
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoverage-report
+          path: target/scala-*/scoverage-report/scoverage.xml
+          if-no-files-found: error
+
+      - name: Upload coverage badge data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badge
+          path: badges/coverage.json
+
+  sonarqube:
+    needs: test-and-coverage
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: [self-hosted, homelab-sonar]
+
+    outputs:
+      sonar_exit_code: ${{ steps.sonar.outputs.exit_code }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: scoverage-report
+          path: target/scoverage-import
+
+      - name: Start SonarQube container
+        run: |
+          docker rm -f sonarqube-ci || true
+
+          docker volume create sonarqube_ci_data
+          docker volume create sonarqube_ci_extensions
+          docker volume create sonarqube_ci_logs
+
+          docker run -d \
+            --name sonarqube-ci \
+            -p 9000:9000 \
+            -v sonarqube_ci_data:/opt/sonarqube/data \
+            -v sonarqube_ci_extensions:/opt/sonarqube/extensions \
+            -v sonarqube_ci_logs:/opt/sonarqube/logs \
+            --ulimit nofile=131072:131072 \
+            --ulimit nproc=8192:8192 \
+            sonarqube:community
+
+      - name: Wait for SonarQube
+        run: |
+          echo "Waiting for SonarQube..."
+          for i in {1..90}; do
+            STATUS=$(curl -s http://localhost:9000/api/system/status | grep -oP '"status":"\K[^"]+' || true)
+            echo "Status: ${STATUS:-not ready}"
+
+            if [ "$STATUS" = "UP" ]; then
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo "SonarQube did not become ready in time."
+          docker logs sonarqube-ci
+          exit 1
+
+      - name: Initialize SonarQube admin password if needed
+        run: |
+          set +e
+
+          HTTP_CODE=$(curl -s -o /tmp/change-password-response.txt -w "%{http_code}" \
+            -u admin:admin \
+            -X POST "http://localhost:9000/api/users/change_password" \
+            -d "login=admin" \
+            -d "previousPassword=admin" \
+            -d "password=${{ secrets.SONAR_ADMIN_PASSWORD }}")
+
+          echo "Password change HTTP code: $HTTP_CODE"
+          cat /tmp/change-password-response.txt || true
+          exit 0
+
+      - name: Run SonarQube analysis
+        id: sonar
+        continue-on-error: true
+        run: |
+          set +e
+
+          docker run --rm \
+            --network host \
+            -v "$PWD:/usr/src" \
+            sonarsource/sonar-scanner-cli:latest \
+            -Dsonar.projectKey=cubatro \
+            -Dsonar.projectName=cubatro \
+            -Dsonar.sources=src/main/scala \
+            -Dsonar.tests=src/test/scala \
+            -Dsonar.scala.coverage.reportPaths=target/scoverage-import/scoverage.xml \
+            -Dsonar.host.url=http://localhost:9000 \
+            -Dsonar.login=admin \
+            -Dsonar.password="${{ secrets.SONAR_ADMIN_PASSWORD }}" \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300
+
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Create SonarQube quality gate badge data
+        run: |
+          mkdir -p badges
+
+          SONAR_EXIT_CODE="${{ steps.sonar.outputs.exit_code }}"
+
+          if [ "$SONAR_EXIT_CODE" != "0" ]; then
+            cat > badges/sonar-quality-gate.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "quality gate",
+            "message": "failed",
+            "color": "red"
+          }
+          EOF
+            exit 0
+          fi
+
+          STATUS=$(curl -s -u "admin:${{ secrets.SONAR_ADMIN_PASSWORD }}" \
+            "http://localhost:9000/api/qualitygates/project_status?projectKey=cubatro" \
+            | grep -oP '"status":"\K[^"]+')
+
+          if [ "$STATUS" = "OK" ]; then
+            MESSAGE="passed"
+            COLOR="brightgreen"
+          elif [ "$STATUS" = "WARN" ]; then
+            MESSAGE="warning"
+            COLOR="yellow"
+          elif [ "$STATUS" = "ERROR" ]; then
+            MESSAGE="failed"
+            COLOR="red"
+          else
+            MESSAGE="unknown"
+            COLOR="lightgrey"
+          fi
+
+          cat > badges/sonar-quality-gate.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "quality gate",
+            "message": "${MESSAGE}",
+            "color": "${COLOR}"
+          }
+          EOF
+
+      - name: Upload SonarQube badge data
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-badge
+          path: badges/sonar-quality-gate.json
+
+      - name: Stop SonarQube container
+        if: always()
+        run: |
+          docker rm -f sonarqube-ci || true
+
+  commit-badges:
+    needs:
+      - test-and-coverage
+      - sonarqube
+
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download coverage badge
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-badge
+          path: badges
+
+      - name: Download SonarQube badge
+        uses: actions/download-artifact@v4
+        with:
+          name: sonar-badge
+          path: badges
+
+      - name: Commit badge data
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Update coverage badge
-          file_pattern: badges/coverage.json
+          commit_message: Update coverage and SonarQube badges
+          file_pattern: badges/*.json
 
+  final-status:
+    needs:
+      - test-and-coverage
+      - sonarqube
+      - commit-badges
+
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Fail workflow if tests failed
-        if: steps.coverage.outputs.exit_code != '0'
+        if: needs.test-and-coverage.outputs.test_exit_code != '0'
+        run: exit 1
+
+      - name: Fail workflow if SonarQube failed
+        if: github.event_name == 'push' && needs.sonarqube.outputs.sonar_exit_code != '0'
         run: exit 1
