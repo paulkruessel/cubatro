@@ -31,5 +31,6 @@ metals.sbt
 .idea_modules
 /.worksheet/
 
-
+# Sonar
 .sonarqube-token
+SonarReport.png
