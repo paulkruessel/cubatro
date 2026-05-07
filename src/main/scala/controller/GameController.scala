@@ -14,10 +14,41 @@ enum GameCommand:
   case Reroll
   case ScoreCurrent
 
+case class GameViewState(
+    targetScore: Int,
+    score: Int,
+    phase: String,
+    plays: Int,
+    rerolls: Int,
+    discards: Int,
+    hand: List[String],
+    selected: List[String],
+    inPlay: List[String],
+    lockedRows: List[String],
+    isWin: Boolean,
+    isLose: Boolean
+)
+
 class GameController extends Observable:
   private var currentState: GameState = GameController.defaultInitialState()
 
   def state: GameState = currentState
+
+  def viewState: GameViewState =
+    GameViewState(
+      targetScore = currentState.targetScore,
+      score = currentState.score,
+      phase = currentState.phase.toString,
+      plays = currentState.plays,
+      rerolls = currentState.rerolls,
+      discards = currentState.discards,
+      hand = currentState.availableDice.zipWithIndex.map((d, i) => s"$i:${dieText(d)}"),
+      selected = currentState.selectedDice.zipWithIndex.map((d, i) => s"$i:${dieText(d)}"),
+      inPlay = currentState.diceInPlay.zipWithIndex.map((d, i) => s"$i:[${d.value}]"),
+      lockedRows = currentState.lockedRows.zipWithIndex.map((r, i) => s"${i + 1}. ${r.combination} -> ${r.score}"),
+      isWin = currentState.phase == Phase.Win,
+      isLose = currentState.phase == Phase.Lose
+    )
 
   def drawDice(oldState: GameState): GameState =
     val drawCount = math.max(0, math.min(oldState.maxAvailableDice - oldState.availableDice.length, oldState.bag.size))
@@ -30,11 +61,15 @@ class GameController extends Observable:
   def selectDice(oldState: GameState, indices: List[Int]): GameState =
     val valid = indices.filter(i => i >= 0 && i < oldState.availableDice.length).distinct
     val selected = valid.take(math.max(0, 5 - oldState.selectedDice.length))
+
     if selected.isEmpty then oldState
     else
       val dice = selected.map(oldState.availableDice)
       val remaining = selected.sorted.reverse.foldLeft(oldState.availableDice)(removeAt)
-      oldState.copy(availableDice = remaining, selectedDice = oldState.selectedDice ++ dice)
+      oldState.copy(
+        availableDice = remaining,
+        selectedDice = oldState.selectedDice ++ dice
+      )
 
   def discardDice(oldState: GameState): GameState =
     if oldState.discards <= 0 || oldState.selectedDice.isEmpty then oldState
@@ -53,11 +88,15 @@ class GameController extends Observable:
 
   def selectPlayedDice(oldState: GameState, indices: List[Int]): GameState =
     val valid = indices.filter(i => i >= 0 && i < oldState.diceInPlay.length).distinct
+
     if valid.isEmpty then oldState
     else
       val moved = valid.map(oldState.diceInPlay)
       val remaining = valid.sorted.reverse.foldLeft(oldState.diceInPlay)(removeAt)
-      oldState.copy(diceInPlay = remaining, diceToRoll = oldState.diceToRoll ++ moved)
+      oldState.copy(
+        diceInPlay = remaining,
+        diceToRoll = oldState.diceToRoll ++ moved
+      )
 
   def rollDice(oldState: GameState): GameState =
     if oldState.rerolls <= 0 || oldState.diceToRoll.isEmpty then oldState
@@ -72,21 +111,24 @@ class GameController extends Observable:
   def scoreDiceInPlay(oldState: GameState): GameState =
     if oldState.diceInPlay.isEmpty then oldState
     else
-      val diceChips = oldState.diceInPlay.map(_.eval()._1).sum
-      val diceMult = oldState.diceInPlay.map(_.eval()._2).sum
-      val combination = matchingCombinations(oldState.diceInPlay).last
-      val combinations = matchingCombinations(oldState.diceInPlay)
-      val extraScore = (diceChips + combination.chips) * (diceMult + combination.mult)
-      val scored = oldState.copy(score = oldState.score + extraScore)
-      val upgraded = oldState.cupgrades.foldLeft(scored)((s, c) => c.effect(s))
-      val row = LockedRow(oldState.diceInPlay, combination, extraScore)
+      matchingCombinations(oldState.diceInPlay).lastOption match
+        case None =>
+          oldState
 
-      upgraded.copy(
-        diceInPlay = Nil,
-        diceToRoll = Nil,
-        lockedRows = upgraded.lockedRows :+ row,
-        rerolls = oldState.totalRerolls
-      )
+        case Some(combination) =>
+          val diceChips = oldState.diceInPlay.map(_.eval()._1).sum
+          val diceMult = oldState.diceInPlay.map(_.eval()._2).sum
+          val extraScore = (diceChips + combination.chips) * (diceMult + combination.mult)
+          val scored = oldState.copy(score = oldState.score + extraScore)
+          val upgraded = oldState.cupgrades.foldLeft(scored)((s, c) => c.effect(s))
+          val row = LockedRow(oldState.diceInPlay, combination, extraScore)
+
+          upgraded.copy(
+            diceInPlay = Nil,
+            diceToRoll = Nil,
+            lockedRows = upgraded.lockedRows :+ row,
+            rerolls = oldState.totalRerolls
+          )
 
   def handle(command: GameCommand): Either[String, GameState] =
     val result =
@@ -162,6 +204,12 @@ class GameController extends Observable:
           continue = false
 
     s
+
+  private def dieText(die: Die): String =
+    die.bonusType match
+      case BonusType.None  => s"[d${die.min}-${die.max}]"
+      case BonusType.Chips => s"[d${die.min}-${die.max}:+${die.bonusValue}C]"
+      case BonusType.Mult  => s"[d${die.min}-${die.max}:+${die.bonusValue}M]"
 
 object GameController:
   def defaultInitialState(): GameState =

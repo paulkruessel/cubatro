@@ -320,4 +320,59 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       controller.scoreDiceInPlay(state) shouldBe state
     }
   }
+
+  "create view state from current game state" in {
+    val controller = new GameController()
+    val state = baseState(Phase.Select).copy(
+      availableDice = List(plain, plain),
+      selectedDice = List(plain),
+      diceInPlay = List(RolledDie(plain, 5)),
+      lockedRows = List(
+        LockedRow(
+          dice = List(RolledDie(plain, 6)),
+          combination = Combination.Sixes,
+          score = 43
+        )
+      ),
+      score = 100,
+      targetScore = 1000,
+      plays = 3,
+      rerolls = 2,
+      discards = 1
+    )
+    setState(controller, state)
+
+    val viewState = controller.viewState
+
+    viewState.targetScore shouldBe 1000
+    viewState.score shouldBe 100
+    viewState.phase shouldBe "Select"
+    viewState.plays shouldBe 3
+    viewState.rerolls shouldBe 2
+    viewState.discards shouldBe 1
+    viewState.hand shouldBe List("0:[d1-6]", "1:[d1-6]")
+    viewState.selected shouldBe List("0:[d1-6]")
+    viewState.inPlay shouldBe List("0:[5]")
+    viewState.lockedRows shouldBe List("1. Sixes -> 43")
+    viewState.isWin shouldBe false
+    viewState.isLose shouldBe false
+  }
+
+  "mark view state as win" in {
+    val controller = new GameController()
+    setState(controller, baseState(Phase.Win))
+
+    controller.viewState.isWin shouldBe true
+    controller.viewState.isLose shouldBe false
+    controller.viewState.phase shouldBe "Win"
+  }
+
+  "mark view state as lose" in {
+    val controller = new GameController()
+    setState(controller, baseState(Phase.Lose))
+
+    controller.viewState.isWin shouldBe false
+    controller.viewState.isLose shouldBe true
+    controller.viewState.phase shouldBe "Lose"
+  }
 }
