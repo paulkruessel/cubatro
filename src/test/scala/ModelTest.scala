@@ -1,147 +1,189 @@
 import org.scalatest.wordspec.AnyWordSpec
-import org.scalatest.matchers.should.Matchers._
+import org.scalatest.matchers.should.Matchers
+import model.*
 
-class ModelSpec extends AnyWordSpec {
-    private def baseState: GameState =
-        GameState(
-            bag = Nil,
-            availableDice = Nil,
-            rolledDice = Nil,
-            draftRow = Nil,
-            lockedRows = Nil,
-            cupgrades = Nil,
-            rerollsLeft = 3,
-            targetScore = 100,
-            money = 10,
-            usedCombinations = Set.empty,
-            phase = Phase.Draw
-        )
+class ModelSpec extends AnyWordSpec with Matchers {
 
-    "Model" should {
-        "have all BonusType enum cases" in {
-            val all = BonusType.values.toSet
-            all shouldBe Set(BonusType.Chips, BonusType.Mult, BonusType.Money, BonusType.None)
-        }
+  private val plainDie = Die(bonusType = BonusType.None, bonusValue = 0)
+  private val chipDie = Die(bonusType = BonusType.Chips, bonusValue = 2)
+  private val multDie = Die(bonusType = BonusType.Mult, bonusValue = 1)
 
-        "have all Combination enum cases" in {
-            val all = Combination.values.toSet
-            all shouldBe Set(
-                Combination.Ones,
-                Combination.Twos,
-                Combination.Threes,
-                Combination.Fours,
-                Combination.Fives,
-                Combination.Sixes,
-                Combination.ThreeOfAKind,
-                Combination.FourOfAKind,
-                Combination.FullHouse,
-                Combination.SmallStraight,
-                Combination.LargeStraight,
-                Combination.Yahtzee,
-                Combination.Chance
-            )
-        }
+  private def baseState: GameState =
+    GameState(
+      bag = List.fill(10)(plainDie),
+      availableDice = List(plainDie, chipDie, multDie),
+      maxAvailableDice = 8,
+      selectedDice = Nil,
+      diceInPlay = Nil,
+      diceToRoll = Nil,
+      lockedRows = Nil,
+      cupgrades = Nil,
+      discards = 4,
+      rerolls = 4,
+      totalRerolls = 4,
+      plays = 6,
+      targetScore = 1000,
+      score = 0,
+      phase = Phase.Select
+    )
 
-        "support ConsoleColors values and apply for all cases" in {
-            val text = "x"
-            val all = ConsoleColors.values
-            all.length shouldBe 8
-            all.foreach { color =>
-                val colored = color(text)
-                colored.startsWith(color.code) shouldBe true
-                colored.endsWith(ConsoleColors.CLEAR.code) shouldBe true
-                colored.contains(text) shouldBe true
-            }
-        }
+  "Model" should {
 
-        "have all Phase enum cases" in {
-            val all = Phase.values.toSet
-            all shouldBe Set(Phase.Draw, Phase.Select, Phase.Roll, Phase.Lock, Phase.Score, Phase.Shop)
-        }
-
-        "roll die values in range" in {
-            val die = Die(1, 6, BonusType.None, 0)
-            val result = die.roll()
-            result should (be >= 1 and be <= 6)
-        }
-
-        "use default die min and max values" in {
-            val dieWithDefaults = Die(bonusType = BonusType.None, bonusValue = 0)
-            val result = dieWithDefaults.roll()
-
-            dieWithDefaults.min shouldBe 1
-            dieWithDefaults.max shouldBe 6
-            result should (be >= 1 and be <= 6)
-        }
-
-        "evaluate die with None bonus without changing state" in {
-            val die = Die(1, 6, BonusType.None, 0)
-            val state = baseState
-            val (value, updatedState) = die.eval(state)
-            value should (be >= 1 and be <= 6)
-            updatedState shouldBe state
-        }
-
-        "evaluate die with Chips bonus by adding chips value" in {
-            val die = Die(1, 6, BonusType.Chips, 3)
-            val state = baseState
-            val (value, updatedState) = die.eval(state)
-            value should (be >= 4 and be <= 9)
-            updatedState shouldBe state
-        }
-
-        "evaluate die with Mult bonus by multiplying roll" in {
-            val die = Die(1, 6, BonusType.Mult, 2)
-            val state = baseState
-            val (value, updatedState) = die.eval(state)
-            value should (be >= 2 and be <= 12)
-            updatedState shouldBe state
-        }
-
-        "evaluate die with Money bonus by increasing money" in {
-            val die = Die(1, 6, BonusType.Money, 5)
-            val state = baseState
-            val (value, updatedState) = die.eval(state)
-            value should (be >= 1 and be <= 6)
-            updatedState.money shouldBe state.money + 5
-            updatedState.phase shouldBe state.phase
-        }
-
-        "calculate total score as chips times mult" in {
-            val score = Score(chips = 7, mult = 4)
-            score.total shouldBe 28
-        }
-
-        "add money immutably in GameState" in {
-            val state = baseState.copy(
-                bag = List(Die(1, 6, BonusType.None, 0)),
-                phase = Phase.Roll,
-                usedCombinations = Set(Combination.Chance)
-            )
-
-            val updated = state.addMoney(12)
-
-            updated.money shouldBe state.money + 12
-            updated.bag shouldBe state.bag
-            updated.phase shouldBe state.phase
-            updated.usedCombinations shouldBe state.usedCombinations
-        }
-
-        "construct RolledDie, Cupgrade and LockedRow" in {
-            val die = Die(1, 6, BonusType.None, 0)
-            val rolled = RolledDie(die, 3)
-            val cupgrade = Cupgrade("+1 money", _.addMoney(1))
-            val score = Score(3, 2)
-            val row = LockedRow(List(rolled), Combination.Ones, score)
-            val state = baseState
-
-            rolled.die shouldBe die
-            rolled.value shouldBe 3
-            cupgrade.name shouldBe "+1 money"
-            cupgrade.effect(state).money shouldBe state.money + 1
-            row.dice shouldBe List(rolled)
-            row.combination shouldBe Combination.Ones
-            row.score.total shouldBe 6
-        }
+    "have all BonusType enum cases" in {
+      BonusType.values.toSet shouldBe Set(BonusType.Chips, BonusType.Mult, BonusType.None)
     }
+
+    "have main Phase enum cases" in {
+      Phase.values.toSet should contain allOf (
+        Phase.Draw,
+        Phase.Select,
+        Phase.Roll,
+        Phase.PickOut,
+        Phase.Score,
+        Phase.EndEval,
+        Phase.Win,
+        Phase.Lose
+      )
+    }
+
+    "roll die values in range" in {
+      val rolled = plainDie.roll()
+      rolled.value should be >= 1
+      rolled.value should be <= 6
+    }
+
+    "evaluate all die bonus types" in {
+      RolledDie(plainDie, 3).eval() shouldBe (3, 0)
+      RolledDie(chipDie, 3).eval() shouldBe (5, 0)
+      RolledDie(multDie, 3).eval() shouldBe (3, 1)
+    }
+
+    "find matching combinations" in {
+      matchingCombinations(List(
+        RolledDie(plainDie, 1),
+        RolledDie(plainDie, 2),
+        RolledDie(plainDie, 3),
+        RolledDie(plainDie, 4),
+        RolledDie(plainDie, 5)
+      )) should contain (Combination.LargeStraight)
+
+      matchingCombinations(List.fill(5)(RolledDie(plainDie, 6))) should contain (Combination.Yahtzee)
+    }
+
+    "select dice from available dice" in {
+      val state = baseState.selectDice(List(0, 1))
+      state.availableDice.length shouldBe 1
+      state.selectedDice.length shouldBe 2
+    }
+
+    "ignore invalid selection indices" in {
+      baseState.selectDice(List(999)) shouldBe baseState
+    }
+
+    "move selected dice to play" in {
+      val selected = baseState.selectDice(List(0, 1))
+      val played = selected.addDiceToPlay()
+
+      played.selectedDice shouldBe Nil
+      played.diceInPlay.length shouldBe 2
+    }
+
+    "not move dice to play if no dice are selected" in {
+      baseState.addDiceToPlay() shouldBe baseState
+    }
+
+    "discard selected dice and reduce discards" in {
+      val selected = baseState.selectDice(List(0))
+      val discarded = selected.discardDice()
+
+      discarded.discards shouldBe 3
+      discarded.selectedDice shouldBe Nil
+    }
+
+    "not discard if nothing selected or no discards left" in {
+      baseState.discardDice() shouldBe baseState
+      baseState.copy(selectedDice = List(plainDie), discards = 0).discardDice() shouldBe
+        baseState.copy(selectedDice = List(plainDie), discards = 0)
+    }
+
+    "select played dice for reroll" in {
+      val state = baseState.copy(
+        diceInPlay = List(
+          RolledDie(plainDie, 1),
+          RolledDie(chipDie, 2)
+        )
+      )
+
+      val selected = state.selectPlayedDice(List(0))
+
+      selected.diceInPlay.length shouldBe 1
+      selected.diceToRoll.length shouldBe 1
+    }
+
+    "ignore invalid played dice indices" in {
+      baseState.selectPlayedDice(List(999)) shouldBe baseState
+    }
+
+    "reroll selected dice" in {
+      val state = baseState.copy(
+        diceToRoll = List(RolledDie(plainDie, 1)),
+        rerolls = 2
+      )
+
+      val rolled = state.rollDice()
+
+      rolled.diceToRoll shouldBe Nil
+      rolled.diceInPlay.length shouldBe 1
+      rolled.rerolls shouldBe 1
+    }
+
+    "not reroll without rerolls or dice to roll" in {
+      val noRerolls = baseState.copy(
+        rerolls = 0,
+        diceToRoll = List(RolledDie(plainDie, 1))
+      )
+
+      val noDiceToRoll = baseState.copy(
+        rerolls = 2,
+        diceToRoll = Nil
+      )
+
+      noRerolls.rollDice() shouldBe noRerolls
+      noDiceToRoll.rollDice() shouldBe noDiceToRoll
+    }
+
+    "score dice in play and create locked row" in {
+      val state = baseState.copy(
+        diceInPlay = List(
+          RolledDie(plainDie, 6),
+          RolledDie(plainDie, 6),
+          RolledDie(chipDie, 1)
+        )
+      )
+
+      val scored = state.scoreDiceInPlay()
+
+      scored.score should be > 0
+      scored.lockedRows.length shouldBe 1
+      scored.diceInPlay shouldBe Nil
+    }
+
+    "score dice with cupgrade effect" in {
+      val state = baseState.copy(
+        diceInPlay = List(
+          RolledDie(plainDie, 6),
+          RolledDie(plainDie, 6)
+        ),
+        cupgrades = List(Cupgrade("bonus", s => s.copy(score = s.score + 10)))
+      )
+
+      val scored = state.scoreDiceInPlay()
+
+      scored.score should be > 10
+    }
+
+    "not score empty dice list" in {
+      baseState.scoreDiceInPlay() shouldBe baseState
+    }
+  }
 }

@@ -1,0 +1,163 @@
+package model
+
+import scala.util.Random
+
+def removeAt[A](list: List[A], index: Int): List[A] =
+  list.take(index) ++ list.drop(index + 1)
+
+enum BonusType:
+  case Chips, Mult, None
+
+enum Combination(val rank: Int, val chips: Int, val mult: Int):
+  case Ones extends Combination(0, 5, 1)
+  case Twos extends Combination(1, 10, 1)
+  case Threes extends Combination(2, 15, 1)
+  case Fours extends Combination(3, 20, 1)
+  case Fives extends Combination(4, 25, 1)
+  case Sixes extends Combination(5, 30, 1)
+  case ThreeOfAKind extends Combination(6, 30, 2)
+  case FourOfAKind extends Combination(7, 60, 4)
+  case FullHouse extends Combination(8, 80, 5)
+  case SmallStraight extends Combination(9, 100, 6)
+  case LargeStraight extends Combination(10, 120, 8)
+  case Yahtzee extends Combination(11, 200, 12)
+
+enum Phase:
+  case Draw, Select, Roll, PickOut, Score, EndEval, Win, Lose
+
+case class Die(
+    min: Int = 1,
+    max: Int = 6,
+    bonusType: BonusType,
+    bonusValue: Int
+):
+  def roll(): RolledDie =
+    RolledDie(this, Random.nextInt(max - min + 1) + min)
+
+case class RolledDie(die: Die, value: Int):
+  def eval(): (Int, Int) =
+    die.bonusType match
+      case BonusType.None  => (value, 0)
+      case BonusType.Chips => (value + die.bonusValue, 0)
+      case BonusType.Mult  => (value, die.bonusValue)
+
+case class Cupgrade(name: String, effect: GameState => GameState)
+
+case class LockedRow(
+    dice: List[RolledDie],
+    combination: Combination,
+    score: Int
+)
+
+def matchingCombinations(dice: List[RolledDie]): List[Combination] =
+  val values = dice.map(_.value)
+  val counts = values.groupBy(identity).view.mapValues(_.size).toMap
+  val distinctValues = values.distinct.sorted
+
+  val upper =
+    List(
+      1 -> Combination.Ones,
+      2 -> Combination.Twos,
+      3 -> Combination.Threes,
+      4 -> Combination.Fours,
+      5 -> Combination.Fives,
+      6 -> Combination.Sixes
+    ).collect { case (n, c) if values.contains(n) => c }
+
+  def straight(length: Int): Boolean =
+    distinctValues.sliding(length).exists(w => w.length == length && w.last - w.head == length - 1)
+
+  val lower =
+    List(
+      Option.when(counts.values.exists(_ >= 3))(Combination.ThreeOfAKind),
+      Option.when(counts.values.exists(_ >= 4))(Combination.FourOfAKind),
+      Option.when(counts.values.toList.sorted == List(2, 3))(Combination.FullHouse),
+      Option.when(straight(4))(Combination.SmallStraight),
+      Option.when(straight(5))(Combination.LargeStraight),
+      Option.when(counts.values.exists(_ == 5))(Combination.Yahtzee)
+    ).flatten
+
+  (upper ++ lower).sortBy(_.rank)
+
+case class GameState(
+    bag: List[Die],
+    availableDice: List[Die],
+    maxAvailableDice: Int,
+    selectedDice: List[Die],
+    diceInPlay: List[RolledDie],
+    diceToRoll: List[RolledDie],
+    lockedRows: List[LockedRow],
+    cupgrades: List[Cupgrade],
+    discards: Int,
+    rerolls: Int,
+    totalRerolls: Int,
+    plays: Int,
+    targetScore: Int,
+    score: Int,
+    phase: Phase
+):
+  def drawDice(): GameState =
+    val drawCount = math.max(0, math.min(maxAvailableDice - availableDice.length, bag.size))
+    val shuffled = Random.shuffle(bag)
+    copy(
+      bag = shuffled.drop(drawCount),
+      availableDice = availableDice ++ shuffled.take(drawCount)
+    )
+
+  def selectDice(indices: List[Int]): GameState =
+    val valid = indices.filter(i => i >= 0 && i < availableDice.length).distinct
+    val selected = valid.take(math.max(0, 5 - selectedDice.length))
+    if selected.isEmpty then this
+    else
+      val dice = selected.map(availableDice)
+      val remaining = selected.sorted.reverse.foldLeft(availableDice)(removeAt)
+      copy(availableDice = remaining, selectedDice = selectedDice ++ dice)
+
+  def discardDice(): GameState =
+    if discards <= 0 || selectedDice.isEmpty then this
+    else copy(selectedDice = Nil, discards = discards - 1).drawDice()
+
+  def addDiceToPlay(): GameState =
+    if selectedDice.isEmpty then this
+    else
+      val rolled = selectedDice.map(_.roll())
+      copy(
+        diceInPlay = (diceInPlay ++ rolled).sortBy(_.value),
+        selectedDice = Nil
+      ).drawDice()
+
+  def selectPlayedDice(indices: List[Int]): GameState =
+    val valid = indices.filter(i => i >= 0 && i < diceInPlay.length).distinct
+    if valid.isEmpty then this
+    else
+      val moved = valid.map(diceInPlay)
+      val remaining = valid.sorted.reverse.foldLeft(diceInPlay)(removeAt)
+      copy(diceInPlay = remaining, diceToRoll = diceToRoll ++ moved)
+
+  def rollDice(): GameState =
+    if rerolls <= 0 || diceToRoll.isEmpty then this
+    else
+      val rolled = diceToRoll.map(_.die.roll())
+      copy(
+        diceInPlay = (diceInPlay ++ rolled).sortBy(_.value),
+        diceToRoll = Nil,
+        rerolls = rerolls - 1
+      )
+
+  def scoreDiceInPlay(): GameState =
+    if diceInPlay.isEmpty then this
+    else
+      val diceChips = diceInPlay.map(_.eval()._1).sum
+      val diceMult = diceInPlay.map(_.eval()._2).sum
+      val combination = matchingCombinations(diceInPlay).last
+      val extraScore = (diceChips + combination.chips) * (diceMult + combination.mult)
+      val scored = copy(score = score + extraScore)
+      val upgraded = cupgrades.foldLeft(scored)((s, c) => c.effect(s))
+      val row = LockedRow(diceInPlay, combination, extraScore)
+
+      upgraded.copy(
+        diceInPlay = Nil,
+        diceToRoll = Nil,
+        lockedRows = upgraded.lockedRows :+ row,
+        rerolls = totalRerolls
+      )
