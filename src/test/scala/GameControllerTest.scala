@@ -319,6 +319,19 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       
       controller.scoreDiceInPlay(state) shouldBe state
     }
+
+    "score single die combinations" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Score).copy(
+        diceInPlay = List(RolledDie(plain, 2))
+      )
+      setState(controller, state)
+
+      val scored = controller.scoreDiceInPlay(state)
+
+      scored.lockedRows.length shouldBe 1
+      scored.score should be > 0
+    }
   }
 
   "create view state from current game state" in {
@@ -327,6 +340,7 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       availableDice = List(plain, plain),
       selectedDice = List(plain),
       diceInPlay = List(RolledDie(plain, 5)),
+      diceToRoll = List(RolledDie(plain, 2)),
       lockedRows = List(
         LockedRow(
           dice = List(RolledDie(plain, 6)),
@@ -354,6 +368,7 @@ class GameControllerTest extends AnyWordSpec with Matchers {
     viewState.selected shouldBe List("0:[d1-6]")
     viewState.inPlay shouldBe List("0:[5]")
     viewState.lockedRows shouldBe List("1. Sixes -> 43")
+    viewState.toRoll shouldBe List("0:[2]")
     viewState.isWin shouldBe false
     viewState.isLose shouldBe false
   }
