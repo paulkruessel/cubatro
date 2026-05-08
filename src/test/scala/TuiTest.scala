@@ -20,6 +20,7 @@ class TuiTest extends AnyWordSpec with Matchers {
       available: List[Die] = Nil,
       selected: List[Die] = Nil,
       inPlay: List[RolledDie] = Nil,
+      diceToRoll: List[RolledDie] = Nil,
       rows: List[LockedRow] = Nil,
       phase: Phase = Phase.Select
   ): GameState =
@@ -29,7 +30,7 @@ class TuiTest extends AnyWordSpec with Matchers {
       maxAvailableDice = 8,
       selectedDice = selected,
       diceInPlay = inPlay,
-      diceToRoll = Nil,
+      diceToRoll = diceToRoll,
       lockedRows = rows,
       cupgrades = Nil,
       discards = 4,
@@ -97,6 +98,22 @@ class TuiTest extends AnyWordSpec with Matchers {
       output should include("0:[5]")
       output should include("1. Sixes -> 43")
     }
+
+      "render toRoll non-empty" in {
+        val controller = new GameController()
+        setState(
+          controller,
+          state(
+            inPlay = Nil,
+            diceToRoll = List(RolledDie(plain, 4))
+          )
+        )
+
+        val output = new Tui(controller, () => "quit", _ => ()).render(controller.viewState)
+
+        output should include("To Roll:")
+        output should include("0:[4]")
+      }
 
     "parse all commands" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())

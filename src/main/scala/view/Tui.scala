@@ -68,6 +68,10 @@ class Tui(
       if viewState.inPlay.isEmpty then "-"
       else viewState.inPlay.mkString(" ")
 
+    val toRoll =
+      if viewState.toRoll.isEmpty then "-"
+      else viewState.toRoll.mkString(" ")
+
     val rows =
       if viewState.lockedRows.isEmpty then "-"
       else viewState.lockedRows.mkString("\n")
@@ -87,6 +91,9 @@ $selected
 
 In Play:
 $inPlay
+
+To Roll:
+$toRoll
 
 Locked rows:
 $rows

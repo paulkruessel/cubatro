@@ -24,6 +24,7 @@ case class GameViewState(
     hand: List[String],
     selected: List[String],
     inPlay: List[String],
+    toRoll: List[String],
     lockedRows: List[String],
     isWin: Boolean,
     isLose: Boolean
@@ -45,6 +46,7 @@ class GameController extends Observable:
       hand = currentState.availableDice.zipWithIndex.map((d, i) => s"$i:${dieText(d)}"),
       selected = currentState.selectedDice.zipWithIndex.map((d, i) => s"$i:${dieText(d)}"),
       inPlay = currentState.diceInPlay.zipWithIndex.map((d, i) => s"$i:[${d.value}]"),
+      toRoll = currentState.diceToRoll.zipWithIndex.map((d, i) => s"$i:[${d.value}]"),
       lockedRows = currentState.lockedRows.zipWithIndex.map((r, i) => s"${i + 1}. ${r.combination} -> ${r.score}"),
       isWin = currentState.phase == Phase.Win,
       isLose = currentState.phase == Phase.Lose
@@ -111,24 +113,20 @@ class GameController extends Observable:
   def scoreDiceInPlay(oldState: GameState): GameState =
     if oldState.diceInPlay.isEmpty then oldState
     else
-      matchingCombinations(oldState.diceInPlay).lastOption match
-        case None =>
-          oldState
+      val combination = matchingCombinations(oldState.diceInPlay).last
+      val diceChips = oldState.diceInPlay.map(_.eval()._1).sum
+      val diceMult = oldState.diceInPlay.map(_.eval()._2).sum
+      val extraScore = (diceChips + combination.chips) * (diceMult + combination.mult)
+      val scored = oldState.copy(score = oldState.score + extraScore)
+      val upgraded = oldState.cupgrades.foldLeft(scored)((s, c) => c.effect(s))
+      val row = LockedRow(oldState.diceInPlay, combination, extraScore)
 
-        case Some(combination) =>
-          val diceChips = oldState.diceInPlay.map(_.eval()._1).sum
-          val diceMult = oldState.diceInPlay.map(_.eval()._2).sum
-          val extraScore = (diceChips + combination.chips) * (diceMult + combination.mult)
-          val scored = oldState.copy(score = oldState.score + extraScore)
-          val upgraded = oldState.cupgrades.foldLeft(scored)((s, c) => c.effect(s))
-          val row = LockedRow(oldState.diceInPlay, combination, extraScore)
-
-          upgraded.copy(
-            diceInPlay = Nil,
-            diceToRoll = Nil,
-            lockedRows = upgraded.lockedRows :+ row,
-            rerolls = oldState.totalRerolls
-          )
+      upgraded.copy(
+        diceInPlay = Nil,
+        diceToRoll = Nil,
+        lockedRows = upgraded.lockedRows :+ row,
+        rerolls = oldState.totalRerolls
+      )
 
   def handle(command: GameCommand): Either[String, GameState] =
     val result =
