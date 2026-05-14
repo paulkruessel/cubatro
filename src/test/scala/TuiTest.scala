@@ -42,6 +42,12 @@ class TuiTest extends AnyWordSpec with Matchers {
       phase = phase
     )
 
+  private def tuiWithState(gameState: GameState): (GameController, Tui) =
+    val controller = new GameController()
+    setState(controller, gameState)
+    val tui = new Tui(controller, () => "quit", _ => ())
+    (controller, tui)
+
   "Tui" should {
 
     "cover default input and output" in {
@@ -58,64 +64,45 @@ class TuiTest extends AnyWordSpec with Matchers {
       output.toString should include("Game stopped by player")
     }
 
-    "render empty sections" in {
-      val controller = new GameController()
-      setState(controller, state())
-
-      val tui = new Tui(controller, () => "quit", _ => ())
+    "render empty sections exactly" in {
+      val (controller, tui) = tuiWithState(state())
       val output = tui.render(controller.viewState)
 
       output should include("Hand:\n-")
       output should include("Selected:\n-")
       output should include("In Play:\n-")
+      output should include("To Roll:\n-")
       output should include("Locked rows:\n-")
     }
 
-    "render non-empty hand selected in play and locked rows" in {
-      val controller = new GameController()
-
+    "render non-empty sections exactly" in {
       val row = LockedRow(
         dice = List(RolledDie(plain, 6)),
         combination = Combination.Sixes,
         score = 43
       )
 
-      setState(
-        controller,
-        state(
-          available = List(plain, chip),
-          selected = List(chip),
-          inPlay = List(RolledDie(plain, 5)),
-          rows = List(row)
-        )
-      )
-
-      val output =
-        new Tui(controller, () => "quit", _ => ()).render(controller.viewState)
-
-      output should include("0:[d1-6]")
-      output should include("1:[d1-6:+2C]")
-      output should include("0:[5]")
-      output should include("1. Sixes -> 43")
-    }
-
-      "render toRoll non-empty" in {
-        val controller = new GameController()
-        setState(
-          controller,
+      val (controller, tui) =
+        tuiWithState(
           state(
-            inPlay = Nil,
-            diceToRoll = List(RolledDie(plain, 4))
+            available = List(plain, chip),
+            selected = List(chip),
+            inPlay = List(RolledDie(plain, 5)),
+            diceToRoll = List(RolledDie(plain, 4)),
+            rows = List(row)
           )
         )
 
-        val output = new Tui(controller, () => "quit", _ => ()).render(controller.viewState)
+      val output = tui.render(controller.viewState)
 
-        output should include("To Roll:")
-        output should include("0:[4]")
-      }
+      output should include("Hand:\n0:[d1-6] 1:[d1-6:+2C]")
+      output should include("Selected:\n0:[d1-6:+2C]")
+      output should include("In Play:\n0:[5]")
+      output should include("To Roll:\n0:[4]")
+      output should include("Locked rows:\n1. Sixes -> 43")
+    }
 
-    "parse all commands" in {
+    "parse all long and short commands" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())
 
       tui.parse("help") shouldBe GameCommand.Help
@@ -133,24 +120,38 @@ class TuiTest extends AnyWordSpec with Matchers {
       tui.parse("select 0, 1 x 2") shouldBe GameCommand.Select(List(0, 1, 2))
       tui.parse("pick 0 x 1") shouldBe GameCommand.Pick(List(0, 1))
       tui.parse("anything") shouldBe GameCommand.Help
+      tui.parse("") shouldBe GameCommand.Help
     }
 
     "show prompts for all phases" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())
 
-      tui.prompt("Select") should include("Select phase")
-      tui.prompt("PickOut") should include("PickOut phase")
-      tui.prompt("Score") should include("Score phase")
-      tui.prompt("Draw") should include("Phase Draw")
+      tui.prompt("Select") shouldBe "\nSelect phase: select <indices> | discard | play | help | quit\n> "
+      tui.prompt("PickOut") shouldBe "\nPickOut phase: pick <indices> | reroll | score | help | quit\n> "
+      tui.prompt("Score") shouldBe "\nScore phase: score | help | quit\n> "
+      tui.prompt("Draw") shouldBe "\nPhase Draw\n> "
     }
 
     "show help for all phases" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())
 
-      tui.help("Select") should include("Select dice")
-      tui.help("PickOut") should include("reroll")
-      tui.help("Score") should include("score")
-      tui.help("Draw") should include("Commands")
+      tui.help("Select") shouldBe "Select dice with: select 0 1 2. Then use: play."
+      tui.help("PickOut") shouldBe "Use: pick 0, then reroll. Or use: score."
+      tui.help("Score") shouldBe "Use: score."
+      tui.help("Draw") shouldBe "Commands: help, quit."
+    }
+
+    "update by rendering current view state" in {
+      val controller = new GameController()
+      setState(controller, state(available = List(plain)))
+      val outputs = scala.collection.mutable.ListBuffer.empty[String]
+      val tui = new Tui(controller, () => "quit", text => outputs += text)
+
+      tui.update()
+
+      outputs.mkString should include("CUBATRO")
+      outputs.mkString should include("0:[d1-6]")
+      outputs.mkString should endWith("\n")
     }
 
     "run and quit" in {
@@ -169,7 +170,7 @@ class TuiTest extends AnyWordSpec with Matchers {
 
       tui.run()
 
-      outputs.mkString should include("Select dice")
+      outputs.mkString should include("Select dice with: select 0 1 2. Then use: play.")
       outputs.mkString should include("Game stopped by player")
     }
 
@@ -180,19 +181,13 @@ class TuiTest extends AnyWordSpec with Matchers {
 
       tui.run()
 
-      outputs.mkString should include("Action error")
+      outputs.mkString should include("Action error: Allowed: select, discard, play, help, quit")
     }
 
     "run valid non terminal command then quit" in {
       val inputs = scala.collection.mutable.Queue("select 0", "quit")
       val outputs = scala.collection.mutable.ListBuffer.empty[String]
-
-      val tui =
-        new Tui(
-          new GameController(),
-          () => inputs.dequeue(),
-          text => outputs += text
-        )
+      val tui = new Tui(new GameController(), () => inputs.dequeue(), text => outputs += text)
 
       tui.run()
 
