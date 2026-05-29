@@ -68,11 +68,28 @@ class TuiTest extends AnyWordSpec with Matchers {
       val (controller, tui) = tuiWithState(state())
       val output = tui.render(controller.viewState)
 
-      output should include("Hand:\n-")
-      output should include("Selected:\n-")
-      output should include("In Play:\n-")
-      output should include("To Roll:\n-")
-      output should include("Locked rows:\n-")
+      output shouldBe
+        """+----------------------------------------------------------------------+
+|                               CUBATRO                                |
++----------------------------------------------------------------------+
+Target: 1000 | Score: 0 | Phase: Select
+Plays: 6 | Rerolls: 4 | Discards: 4
+
+Hand:
+-
+
+Selected:
+-
+
+In Play:
+-
+
+To Roll:
+-
+
+Locked rows:
+-
++----------------------------------------------------------------------+"""
     }
 
     "render non-empty sections exactly" in {
@@ -87,19 +104,36 @@ class TuiTest extends AnyWordSpec with Matchers {
           state(
             available = List(plain, chip),
             selected = List(chip),
-            inPlay = List(RolledDie(plain, 5)),
-            diceToRoll = List(RolledDie(plain, 4)),
+            inPlay = List(RolledDie(plain, 5), RolledDie(plain, 6)),
+            diceToRoll = List(RolledDie(plain, 4), RolledDie(plain, 3)),
             rows = List(row)
           )
         )
 
       val output = tui.render(controller.viewState)
 
-      output should include("Hand:\n0:[d1-6] 1:[d1-6:+2C]")
-      output should include("Selected:\n0:[d1-6:+2C]")
-      output should include("In Play:\n0:[5]")
-      output should include("To Roll:\n0:[4]")
-      output should include("Locked rows:\n1. Sixes -> 43")
+      output shouldBe
+        """+----------------------------------------------------------------------+
+|                               CUBATRO                                |
++----------------------------------------------------------------------+
+Target: 1000 | Score: 0 | Phase: Select
+Plays: 6 | Rerolls: 4 | Discards: 4
+
+Hand:
+0:[d1-6] 1:[d1-6:+2C]
+
+Selected:
+0:[d1-6:+2C]
+
+In Play:
+0:[5] 1:[6]
+
+To Roll:
+0:[4] 1:[3]
+
+Locked rows:
+1. Sixes -> 43
++----------------------------------------------------------------------+"""
     }
 
     "parse all long and short commands" in {
@@ -165,6 +199,17 @@ class TuiTest extends AnyWordSpec with Matchers {
 
     "run help then quit" in {
       val inputs = scala.collection.mutable.Queue("help", "quit")
+      val outputs = scala.collection.mutable.ListBuffer.empty[String]
+      val tui = new Tui(new GameController(), () => inputs.dequeue(), text => outputs += text)
+
+      tui.run()
+
+      outputs.mkString should include("Select dice with: select 0 1 2. Then use: play.")
+      outputs.mkString should include("Game stopped by player")
+    }
+
+    "run short help then quit" in {
+      val inputs = scala.collection.mutable.Queue("h", "quit")
       val outputs = scala.collection.mutable.ListBuffer.empty[String]
       val tui = new Tui(new GameController(), () => inputs.dequeue(), text => outputs += text)
 
