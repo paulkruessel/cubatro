@@ -231,5 +231,11 @@ class ModelSpec extends AnyWordSpec with Matchers {
       result should contain (Combination.FourOfAKind)
       result should not contain Combination.Yahtzee
     }
+
+    "create dice with factory methods" in {
+      DieFactory.plain shouldBe Die(bonusType = BonusType.None, bonusValue = 0)
+      DieFactory.chips(2) shouldBe Die(bonusType = BonusType.Chips, bonusValue = 2)
+      DieFactory.mult(1) shouldBe Die(bonusType = BonusType.Mult, bonusValue = 1)
+    }
   }
 }

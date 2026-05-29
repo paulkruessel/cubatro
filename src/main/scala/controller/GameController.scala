@@ -213,9 +213,9 @@ class GameController extends Observable:
 
 object GameController:
   def defaultInitialState(): GameState =
-    val plain = Die(bonusType = BonusType.None, bonusValue = 0)
-    val chips = Die(bonusType = BonusType.Chips, bonusValue = 2)
-    val mult = Die(bonusType = BonusType.Mult, bonusValue = 1)
+    val plain = DieFactory.plain
+    val chips = DieFactory.chips(2)
+    val mult = DieFactory.mult(2)
 
     GameState(
       bag = Random.shuffle(List.fill(14)(plain) ++ List.fill(6)(chips) ++ List.fill(4)(mult)),

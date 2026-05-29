@@ -50,34 +50,10 @@ case class LockedRow(
 )
 
 def matchingCombinations(dice: List[RolledDie]): List[Combination] =
-  val values = dice.map(_.value)
-  val counts = values.groupBy(identity).view.mapValues(_.size).toMap
-  val distinctValues = values.distinct.sorted
-
-  val upper =
-    List(
-      1 -> Combination.Ones,
-      2 -> Combination.Twos,
-      3 -> Combination.Threes,
-      4 -> Combination.Fours,
-      5 -> Combination.Fives,
-      6 -> Combination.Sixes
-    ).collect { case (n, c) if values.contains(n) => c }
-
-  def straight(length: Int): Boolean =
-    distinctValues.sliding(length).exists(w => w.length == length && w.last - w.head == length - 1)
-
-  val lower =
-    List(
-      Option.when(counts.values.exists(_ >= 3))(Combination.ThreeOfAKind),
-      Option.when(counts.values.exists(_ >= 4))(Combination.FourOfAKind),
-      Option.when(counts.values.toList.sorted == List(2, 3))(Combination.FullHouse),
-      Option.when(straight(4))(Combination.SmallStraight),
-      Option.when(straight(5))(Combination.LargeStraight),
-      Option.when(counts.values.exists(_ == 5))(Combination.Yahtzee)
-    ).flatten
-
-  (upper ++ lower).sortBy(_.rank)
+  CombinationStrategies.all
+    .filter(_.matches(dice))
+    .map(_.combination)
+    .sortBy(_.rank)
 
 case class GameState(
     bag: List[Die],
