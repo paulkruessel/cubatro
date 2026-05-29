@@ -6,8 +6,8 @@ def straight(dice: List[RolledDie], length: Int): Boolean =
 def values(dice: List[RolledDie]): List[Int] =
     dice.map(_.value)
 
-def counts(dice: List[RolledDie]): Iterable[List[Int]] =
-    values(dice).groupBy(identity).values
+def counts(dice: List[RolledDie]): Iterable[Int] =
+    values(dice).groupBy(identity).values.map(_.size)
 
 trait CombinationStrategy:
     def combination: Combination
@@ -46,19 +46,24 @@ object SixesStrategy extends CombinationStrategy:
 
 
 object ThreeOfAKindStrategy extends CombinationStrategy:
-    override val combination: Combination = Combination.ThreeOfAKind
-    override def matches(dice: List[RolledDie]): Boolean =
-        counts(dice).exists(_.size >= 3)
+  override val combination: Combination = Combination.ThreeOfAKind
+  override def matches(dice: List[RolledDie]): Boolean =
+    counts(dice).exists(_ >= 3)
 
 object FourOfAKindStrategy extends CombinationStrategy:
-    override val combination: Combination = Combination.FourOfAKind
-    override def matches(dice: List[RolledDie]): Boolean =
-        counts(dice).exists(_.size >= 4)
+  override val combination: Combination = Combination.FourOfAKind
+  override def matches(dice: List[RolledDie]): Boolean =
+    counts(dice).exists(_ >= 4)
 
 object YahtzeeStrategy extends CombinationStrategy:
-    override val combination: Combination = Combination.Yahtzee
-    override def matches(dice: List[RolledDie]): Boolean =
-        counts(dice).exists(_.size == 5)
+  override val combination: Combination = Combination.Yahtzee
+  override def matches(dice: List[RolledDie]): Boolean =
+    counts(dice).exists(_ == 5)
+
+object FullHouseStrategy extends CombinationStrategy:
+  override val combination: Combination = Combination.FullHouse
+  override def matches(dice: List[RolledDie]): Boolean =
+    counts(dice).toList.sorted == List(2, 3)
 
 object SmallStraightStrategy extends CombinationStrategy:
     override val combination: Combination = Combination.SmallStraight
@@ -69,11 +74,6 @@ object LargeStraightStrategy extends CombinationStrategy:
     override val combination: Combination = Combination.LargeStraight
     override def matches(dice: List[RolledDie]): Boolean =
         straight(dice, 5)
-
-object FullHouseStrategy extends CombinationStrategy:
-    override val combination: Combination = Combination.FullHouse
-    override def matches(dice: List[RolledDie]): Boolean =
-        values(dice).groupBy(identity).values.toList.sorted == List(2, 3)
 
 object CombinationStrategies:
   val all: List[CombinationStrategy] =
