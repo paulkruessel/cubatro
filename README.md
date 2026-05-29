@@ -1,5 +1,4 @@
-![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/paulkruessel/cubatro/main/badges/coverage.json)
-![Quality Gate](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/paulkruessel/cubatro/main/badges/sonar-quality-gate.json)
+[![Coverage Status](https://coveralls.io/repos/github/paulkruessel/cubatro/badge.svg?branch=main)](https://coveralls.io/github/paulkruessel/cubatro?branch=main)
 
 ## sbt project compiled with Scala 3
 

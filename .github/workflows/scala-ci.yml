@@ -1,4 +1,4 @@
-name: Test, Coverage and SonarQube
+name: Scala CI with Coveralls
 
 on:
   push:
@@ -8,18 +8,17 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test-and-coverage:
     runs-on: ubuntu-latest
 
-    outputs:
-      test_exit_code: ${{ steps.coverage.outputs.exit_code }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -31,75 +30,8 @@ jobs:
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
 
-      - name: Run tests with coverage
-        id: coverage
-        continue-on-error: true
-        run: |
-          set +e
-          sbt clean coverage test coverageReport
-          EXIT_CODE=$?
-          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Create coverage badge data
-        run: |
-          mkdir -p badges
-
-          TEST_EXIT_CODE="${{ steps.coverage.outputs.exit_code }}"
-
-          if [ "$TEST_EXIT_CODE" != "0" ]; then
-            cat > badges/coverage.json <<EOF
-          {
-            "schemaVersion": 1,
-            "label": "coverage",
-            "message": "failed",
-            "color": "red"
-          }
-          EOF
-            exit 0
-          fi
-
-          RAW_COVERAGE=$(grep -oP 'statement-rate="\K[0-9.]+' target/scala-*/scoverage-report/scoverage.xml | head -1)
-
-          if [ -z "$RAW_COVERAGE" ]; then
-            PERCENT="unknown"
-            COLOR="red"
-          else
-            PERCENT=$(awk "BEGIN {
-              if ($RAW_COVERAGE <= 1) {
-                printf \"%.0f\", $RAW_COVERAGE * 100
-              } else {
-                printf \"%.0f\", $RAW_COVERAGE
-              }
-            }")
-
-            if [ "$PERCENT" -eq 100 ]; then
-              COLOR="brightgreen"
-            else
-              COLOR="yellow"
-            fi
-          fi
-
-          cat > badges/coverage.json <<EOF
-          {
-            "schemaVersion": 1,
-            "label": "coverage",
-            "message": "${PERCENT}%",
-            "color": "${COLOR}"
-          }
-          EOF
-
-      - name: Upload coverage report for SonarQube
-        uses: actions/upload-artifact@v4
-        with:
-          name: scoverage-report
-          path: target/scala-*/scoverage-report/scoverage.xml
-          if-no-files-found: error
-
-      - name: Upload coverage badge data
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-badge
-          path: badges/coverage.json
-
-  
+      - name: Run tests and upload coverage to Coveralls
+        run: sbt clean coverage test coverageReport coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_FLAG_NAME: Scala
