@@ -93,20 +93,26 @@ Locked rows:
     }
 
     "render non-empty sections exactly" in {
-      val row = LockedRow(
+      val row1 = LockedRow(
         dice = List(RolledDie(plain, 6)),
         combination = Combination.Sixes,
         score = 43
+      )
+
+      val row2 = LockedRow(
+        dice = List(RolledDie(chip, 5)),
+        combination = Combination.Fives,
+        score = 20
       )
 
       val (controller, tui) =
         tuiWithState(
           state(
             available = List(plain, chip),
-            selected = List(chip),
+            selected = List(chip, plain),
             inPlay = List(RolledDie(plain, 5), RolledDie(plain, 6)),
             diceToRoll = List(RolledDie(plain, 4), RolledDie(plain, 3)),
-            rows = List(row)
+            rows = List(row1, row2)
           )
         )
 
@@ -123,7 +129,7 @@ Hand:
 0:[d1-6] 1:[d1-6:+2C]
 
 Selected:
-0:[d1-6:+2C]
+0:[d1-6:+2C] 1:[d1-6]
 
 In Play:
 0:[5] 1:[6]
@@ -133,6 +139,7 @@ To Roll:
 
 Locked rows:
 1. Sixes -> 43
+2. Fives -> 20
 +----------------------------------------------------------------------+"""
     }
 
@@ -152,9 +159,12 @@ Locked rows:
       tui.parse("score") shouldBe GameCommand.ScoreCurrent
       tui.parse("s") shouldBe GameCommand.ScoreCurrent
       tui.parse("select 0, 1 x 2") shouldBe GameCommand.Select(List(0, 1, 2))
+      tui.parse("select 0,1") shouldBe GameCommand.Select(List(0, 1))
       tui.parse("pick 0 x 1") shouldBe GameCommand.Pick(List(0, 1))
-      tui.parse("anything") shouldBe GameCommand.Help
-      tui.parse("") shouldBe GameCommand.Help
+      tui.parse("pick 0,1") shouldBe GameCommand.Pick(List(0, 1))
+      tui.parse("anything") shouldBe GameCommand.Invalid
+      tui.parse("") shouldBe GameCommand.Invalid
+      
     }
 
     "show prompts for all phases" in {
@@ -183,9 +193,8 @@ Locked rows:
 
       tui.update()
 
-      outputs.mkString should include("CUBATRO")
-      outputs.mkString should include("0:[d1-6]")
-      outputs.mkString should endWith("\n")
+      outputs should have size 1
+      outputs.head shouldBe tui.render(controller.viewState) + "\n"
     }
 
     "run and quit" in {
@@ -204,8 +213,19 @@ Locked rows:
 
       tui.run()
 
-      outputs.mkString should include("Select dice with: select 0 1 2. Then use: play.")
-      outputs.mkString should include("Game stopped by player")
+      val out = outputs.mkString
+      out should include("Select dice with: select 0 1 2. Then use: play.\n")
+      out should include("\nSelect phase: select <indices> | discard | play | help | quit\n> Game stopped by player.\n")
+    }
+
+    "write newline after help output" in {
+      val inputs = scala.collection.mutable.Queue("help", "quit")
+      val outputs = scala.collection.mutable.ListBuffer.empty[String]
+      val tui = new Tui(new GameController(), () => inputs.dequeue(), text => outputs += text)
+
+      tui.run()
+
+      outputs should contain ("Select dice with: select 0 1 2. Then use: play.\n")
     }
 
     "run short help then quit" in {
@@ -215,8 +235,9 @@ Locked rows:
 
       tui.run()
 
-      outputs.mkString should include("Select dice with: select 0 1 2. Then use: play.")
-      outputs.mkString should include("Game stopped by player")
+      val out = outputs.mkString
+      out should include("Select dice with: select 0 1 2. Then use: play.\n")
+      out should include("\nSelect phase: select <indices> | discard | play | help | quit\n> Game stopped by player.\n")
     }
 
     "run invalid command then quit" in {

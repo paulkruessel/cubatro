@@ -13,6 +13,7 @@ enum GameCommand:
   case Pick(indices: List[Int])
   case Reroll
   case ScoreCurrent
+  case Invalid
 
 case class GameViewState(
     targetScore: Int,
@@ -139,6 +140,7 @@ class GameController extends Observable:
               Right(discardDice(currentState))
             case GameCommand.PlaySelected =>
               Right(addDiceToPlay(currentState).copy(phase = Phase.Roll))
+            case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
             case _ =>
               Left("Allowed: select, discard, play, help, quit")
 

@@ -53,7 +53,7 @@ class Tui(
       case "score" :: Nil | "s" :: Nil      => GameCommand.ScoreCurrent
       case "select" :: tail                 => GameCommand.Select(tail.flatMap(_.toIntOption))
       case "pick" :: tail                   => GameCommand.Pick(tail.flatMap(_.toIntOption))
-      case _                                => GameCommand.Help
+      case _                                => GameCommand.Invalid
 
   def render(viewState: GameViewState): String =
     val hand =

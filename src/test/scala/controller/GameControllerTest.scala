@@ -221,6 +221,14 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       controller.handle(GameCommand.Reroll) shouldBe Left("Allowed: select, discard, play, help, quit")
     }
 
+    "reject invalid command in Select phase with exact message" in {
+    val controller = new GameController()
+    setState(controller, baseState(Phase.Select))
+
+    controller.handle(GameCommand.Invalid) shouldBe
+      Left("Unknown command. Use help to see valid commands.")
+  }
+
     "select played dice for reroll" in {
       val controller = new GameController()
       val state = baseState(Phase.PickOut).copy(
