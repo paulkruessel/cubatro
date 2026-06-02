@@ -218,7 +218,7 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       val controller = new GameController()
       controller.start()
 
-      controller.handle(GameCommand.Reroll) shouldBe Left("Allowed: select, discard, play, help, quit")
+      controller.handle(GameCommand.Reroll) shouldBe Left("Allowed: select, discard, play, help, quit, undo, redo")
     }
 
     "reject invalid command in Select phase with exact message" in {
@@ -317,7 +317,7 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       val controller = new GameController()
       setState(controller, baseState(Phase.PickOut))
 
-      controller.handle(GameCommand.Discard) shouldBe Left("Allowed: pick, reroll, score, help, quit")
+      controller.handle(GameCommand.Discard) shouldBe Left("Allowed: pick, reroll, score, help, quit, undo, redo")
     }
 
     "score dice in Score phase" in {
@@ -339,7 +339,7 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       val controller = new GameController()
       setState(controller, baseState(Phase.Score))
 
-      controller.handle(GameCommand.PlaySelected) shouldBe Left("Allowed: score, help, quit")
+      controller.handle(GameCommand.PlaySelected) shouldBe Left("Allowed: score, help, quit, undo, redo")
     }
 
     "score dice and apply cupgrade effect" in {
@@ -505,6 +505,75 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       controller.start()
 
       controller.state.phase shouldBe Phase.Lose
+    }
+
+    "undo after select restores previous state" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Select).copy(
+        availableDice = List(plain, chip, mult),
+        selectedDice = Nil
+      )
+      setState(controller, state)
+
+      controller.handle(GameCommand.Select(List(0, 1)))
+      controller.state.selectedDice shouldBe List(plain, chip)
+
+      controller.handle(GameCommand.Undo) shouldBe Right(state)
+      controller.state shouldBe state
+    }
+
+    "redo after undo reapplies previous command" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Select).copy(
+        availableDice = List(plain, chip, mult),
+        selectedDice = Nil
+      )
+      setState(controller, state)
+
+      val afterSelect = controller.handle(GameCommand.Select(List(0, 1))).toOption.get
+      controller.handle(GameCommand.Undo)
+
+      controller.handle(GameCommand.Redo) shouldBe Right(afterSelect)
+      controller.state shouldBe afterSelect
+    }
+
+    "return errors when undo or redo is not possible" in {
+      val controller = new GameController()
+      setState(controller, baseState(Phase.Select))
+
+      controller.handle(GameCommand.Undo) shouldBe Left("Nothing to undo")
+      controller.handle(GameCommand.Redo) shouldBe Left("Nothing to redo")
+    }
+
+
+    "reject invalid command object in PickOut phase with exact unknown-command message" in {
+      val controller = new GameController()
+      setState(controller, baseState(Phase.PickOut))
+
+      controller.handle(GameCommand.Invalid) shouldBe
+        Left("Unknown command. Use help to see valid commands.")
+    }
+
+    "reject invalid command object in Score phase with exact unknown-command message" in {
+      val controller = new GameController()
+      setState(controller, baseState(Phase.Score))
+
+      controller.handle(GameCommand.Invalid) shouldBe
+        Left("Unknown command. Use help to see valid commands.")
+    }
+
+    "not store unchanged commands in undo history" in {
+      val controller = new GameController()
+      val state = baseState(Phase.Select).copy(
+        availableDice = List(plain, chip, mult),
+        selectedDice = Nil
+      )
+      setState(controller, state)
+
+      controller.handle(GameCommand.Select(List(99))) shouldBe Right(state)
+      controller.state shouldBe state
+      controller.handle(GameCommand.Undo) shouldBe Left("Nothing to undo")
+      controller.state shouldBe state
     }
 
     "mark view state as win and lose" in {

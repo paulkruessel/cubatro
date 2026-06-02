@@ -158,6 +158,9 @@ Locked rows:
       tui.parse("r") shouldBe GameCommand.Reroll
       tui.parse("score") shouldBe GameCommand.ScoreCurrent
       tui.parse("s") shouldBe GameCommand.ScoreCurrent
+      tui.parse("undo") shouldBe GameCommand.Undo
+      tui.parse("u") shouldBe GameCommand.Undo
+      tui.parse("redo") shouldBe GameCommand.Redo
       tui.parse("select 0, 1 x 2") shouldBe GameCommand.Select(List(0, 1, 2))
       tui.parse("select 0,1") shouldBe GameCommand.Select(List(0, 1))
       tui.parse("pick 0 x 1") shouldBe GameCommand.Pick(List(0, 1))
@@ -170,19 +173,19 @@ Locked rows:
     "show prompts for all phases" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())
 
-      tui.prompt("Select") shouldBe "\nSelect phase: select <indices> | discard | play | help | quit\n> "
-      tui.prompt("PickOut") shouldBe "\nPickOut phase: pick <indices> | reroll | score | help | quit\n> "
-      tui.prompt("Score") shouldBe "\nScore phase: score | help | quit\n> "
+      tui.prompt("Select") shouldBe "\nSelect phase: select <indices> | discard | play | undo | redo | help | quit\n> "
+      tui.prompt("PickOut") shouldBe "\nPickOut phase: pick <indices> | reroll | score | undo | redo | help | quit\n> "
+      tui.prompt("Score") shouldBe "\nScore phase: score | undo | redo | help | quit\n> "
       tui.prompt("Draw") shouldBe "\nPhase Draw\n> "
     }
 
     "show help for all phases" in {
       val tui = new Tui(new GameController(), () => "quit", _ => ())
 
-      tui.help("Select") shouldBe "Select dice with: select 0 1 2. Then use: play."
-      tui.help("PickOut") shouldBe "Use: pick 0, then reroll. Or use: score."
-      tui.help("Score") shouldBe "Use: score."
-      tui.help("Draw") shouldBe "Commands: help, quit."
+      tui.help("Select") shouldBe "Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo."
+      tui.help("PickOut") shouldBe "Use: pick 0, then reroll. Or use: score. Undo with: undo. Redo with: redo."
+      tui.help("Score") shouldBe "Use: score. Undo with: undo. Redo with: redo."
+      tui.help("Draw") shouldBe "Commands: undo, redo, help, quit."
     }
 
     "update by rendering current view state" in {
@@ -214,8 +217,8 @@ Locked rows:
       tui.run()
 
       val out = outputs.mkString
-      out should include("Select dice with: select 0 1 2. Then use: play.\n")
-      out should include("\nSelect phase: select <indices> | discard | play | help | quit\n> Game stopped by player.\n")
+      out should include("Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo.\n")
+      out should include("\nSelect phase: select <indices> | discard | play | undo | redo | help | quit\n> Game stopped by player.\n")
     }
 
     "write newline after help output" in {
@@ -225,7 +228,7 @@ Locked rows:
 
       tui.run()
 
-      outputs should contain ("Select dice with: select 0 1 2. Then use: play.\n")
+      outputs should contain ("Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo.\n")
     }
 
     "run short help then quit" in {
@@ -236,8 +239,8 @@ Locked rows:
       tui.run()
 
       val out = outputs.mkString
-      out should include("Select dice with: select 0 1 2. Then use: play.\n")
-      out should include("\nSelect phase: select <indices> | discard | play | help | quit\n> Game stopped by player.\n")
+      out should include("Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo.\n")
+      out should include("\nSelect phase: select <indices> | discard | play | undo | redo | help | quit\n> Game stopped by player.\n")
     }
 
     "run invalid command then quit" in {
@@ -247,7 +250,7 @@ Locked rows:
 
       tui.run()
 
-      outputs.mkString should include("Action error: Allowed: select, discard, play, help, quit")
+      outputs.mkString should include("Action error: Allowed: select, discard, play, help, quit, undo, redo")
     }
 
     "run valid non terminal command then quit" in {

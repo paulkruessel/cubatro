@@ -13,6 +13,8 @@ enum GameCommand:
   case Pick(indices: List[Int])
   case Reroll
   case ScoreCurrent
+  case Undo
+  case Redo
   case Invalid
 
 case class GameViewState(
@@ -33,6 +35,7 @@ case class GameViewState(
 
 class GameController extends Observable:
   private var currentState: GameState = GameController.defaultInitialState()
+  private val undoManager = new UndoManager()
 
   def state: GameState = currentState
 
@@ -130,50 +133,76 @@ class GameController extends Observable:
       )
 
   def handle(command: GameCommand): Either[String, GameState] =
-    val result =
-      currentState.phase match
-        case Phase.Select =>
-          command match
-            case GameCommand.Select(indices) =>
-              Right(selectDice(currentState, indices))
-            case GameCommand.Discard =>
-              Right(discardDice(currentState))
-            case GameCommand.PlaySelected =>
-              Right(addDiceToPlay(currentState).copy(phase = Phase.Roll))
-            case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
+    command match
+      case GameCommand.Undo =>
+        undoManager.undoStep() match
+          case Some(_) =>
+            notifyObservers()
+            Right(currentState)
+          case None =>
+            Left("Nothing to undo")
+
+      case GameCommand.Redo =>
+        undoManager.redoStep() match
+          case Some(_) =>
+            notifyObservers()
+            Right(currentState)
+          case None =>
+            Left("Nothing to redo")
+
+      case _ =>
+        val beforeState = currentState
+        val result =
+          currentState.phase match
+            case Phase.Select =>
+              command match
+                case GameCommand.Select(indices) =>
+                  Right(selectDice(currentState, indices))
+                case GameCommand.Discard =>
+                  Right(discardDice(currentState))
+                case GameCommand.PlaySelected =>
+                  Right(addDiceToPlay(currentState).copy(phase = Phase.Roll))
+                case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
+                case _ =>
+                  Left("Allowed: select, discard, play, help, quit, undo, redo")
+
+            case Phase.PickOut =>
+              command match
+                case GameCommand.Pick(indices) =>
+                  Right(selectPlayedDice(currentState, indices))
+                case GameCommand.Reroll =>
+                  Right(currentState.copy(phase = Phase.Roll))
+                case GameCommand.ScoreCurrent =>
+                  val scored = scoreDiceInPlay(currentState)
+                  Right(scored.copy(plays = math.max(0, scored.plays - 1), phase = Phase.EndEval))
+                case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
+                case _ =>
+                  Left("Allowed: pick, reroll, score, help, quit, undo, redo")
+
+            case Phase.Score =>
+              command match
+                case GameCommand.ScoreCurrent =>
+                  val scored = scoreDiceInPlay(currentState)
+                  Right(scored.copy(plays = math.max(0, scored.plays - 1), phase = Phase.EndEval))
+                case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
+                case _ =>
+                  Left("Allowed: score, help, quit, undo, redo")
+
             case _ =>
-              Left("Allowed: select, discard, play, help, quit")
+              Left(s"No command allowed in phase ${currentState.phase}")
 
-        case Phase.PickOut =>
-          command match
-            case GameCommand.Pick(indices) =>
-              Right(selectPlayedDice(currentState, indices))
-            case GameCommand.Reroll =>
-              Right(currentState.copy(phase = Phase.Roll))
-            case GameCommand.ScoreCurrent =>
-              val scored = scoreDiceInPlay(currentState)
-              Right(scored.copy(plays = math.max(0, scored.plays - 1), phase = Phase.EndEval))
-            case _ =>
-              Left("Allowed: pick, reroll, score, help, quit")
-
-        case Phase.Score =>
-          command match
-            case GameCommand.ScoreCurrent =>
-              val scored = scoreDiceInPlay(currentState)
-              Right(scored.copy(plays = math.max(0, scored.plays - 1), phase = Phase.EndEval))
-            case _ =>
-              Left("Allowed: score, help, quit")
-
-        case _ =>
-          Left(s"No command allowed in phase ${currentState.phase}")
-
-    result match
-      case Right(next) =>
-        currentState = advance(next)
-        notifyObservers()
-        Right(currentState)
-      case Left(error) =>
-        Left(error)
+        result match
+          case Right(next) =>
+            val afterState = advance(next)
+            if afterState != beforeState then
+              val commandToStore = GameStateCommand(beforeState, afterState, state => currentState = state)
+              undoManager.doStep(commandToStore)
+            else
+              currentState = afterState
+            notifyObservers()
+            Right(currentState)
+          case Left(error) =>
+            Left(error)
 
   def start(): Unit =
     currentState = advance(currentState)

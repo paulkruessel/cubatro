@@ -3,6 +3,7 @@ package view
 import controller.*
 import util.Observer
 import scala.io.StdIn
+import scala.util.Try
 
 class Tui(
     controller: GameController,
@@ -23,7 +24,7 @@ class Tui(
       writeOutput(prompt(controller.viewState.phase))
       val input = readInput()
 
-      parse(input) match
+      parseSafe(input).getOrElse(GameCommand.Invalid) match
         case GameCommand.Quit =>
           writeOutput("Game stopped by player.\n")
           running = false
@@ -41,6 +42,9 @@ class Tui(
                 writeOutput(if viewState.isWin then "You win.\n" else "You lose.\n")
                 running = false
 
+  def parseSafe(input: String): Try[GameCommand] =
+    Try(parse(input))
+
   def parse(input: String): GameCommand =
     val tokens = input.trim.toLowerCase.replace(",", " ").split("\\s+").toList.filter(_.nonEmpty)
 
@@ -51,6 +55,8 @@ class Tui(
       case "play" :: Nil | "p" :: Nil       => GameCommand.PlaySelected
       case "reroll" :: Nil | "r" :: Nil     => GameCommand.Reroll
       case "score" :: Nil | "s" :: Nil      => GameCommand.ScoreCurrent
+      case "undo" :: Nil | "u" :: Nil       => GameCommand.Undo
+      case "redo" :: Nil                     => GameCommand.Redo
       case "select" :: tail                 => GameCommand.Select(tail.flatMap(_.toIntOption))
       case "pick" :: tail                   => GameCommand.Pick(tail.flatMap(_.toIntOption))
       case _                                => GameCommand.Invalid
@@ -102,14 +108,14 @@ $rows
 
   def prompt(phase: String): String =
     phase match
-      case "Select"  => "\nSelect phase: select <indices> | discard | play | help | quit\n> "
-      case "PickOut" => "\nPickOut phase: pick <indices> | reroll | score | help | quit\n> "
-      case "Score"   => "\nScore phase: score | help | quit\n> "
+      case "Select"  => "\nSelect phase: select <indices> | discard | play | undo | redo | help | quit\n> "
+      case "PickOut" => "\nPickOut phase: pick <indices> | reroll | score | undo | redo | help | quit\n> "
+      case "Score"   => "\nScore phase: score | undo | redo | help | quit\n> "
       case _         => s"\nPhase $phase\n> "
 
   def help(phase: String): String =
     phase match
-      case "Select"  => "Select dice with: select 0 1 2. Then use: play."
-      case "PickOut" => "Use: pick 0, then reroll. Or use: score."
-      case "Score"   => "Use: score."
-      case _         => "Commands: help, quit."
+      case "Select"  => "Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo."
+      case "PickOut" => "Use: pick 0, then reroll. Or use: score. Undo with: undo. Redo with: redo."
+      case "Score"   => "Use: score. Undo with: undo. Redo with: redo."
+      case _         => "Commands: undo, redo, help, quit."
