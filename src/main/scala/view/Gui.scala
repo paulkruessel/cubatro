@@ -98,6 +98,13 @@ class Gui (controller: GameController) extends MainFrame with Observer:
                 if state.lockedRows.isEmpty then "-"
                 else state.lockedRows.mkString("\n")
 
+            discardButton.enabled = state.phase == "Select"
+            playButton.enabled = state.phase == "Select"
+            rerollButton.enabled = state.phase == "PickOut"
+            scoreButton.enabled = state.phase == "PickOut" || state.phase == "Score"
+            undoButton.enabled = true
+            redoButton.enabled = true
+
             if state.isWin then 
                 messageLabel.text = "You win."
                 disableGameButtons()
@@ -134,7 +141,7 @@ class Gui (controller: GameController) extends MainFrame with Observer:
         panel.peer.repaint()
 
     private def disableGameButtons(): Unit =
-        
+
         discardButton.enabled = false
         playButton.enabled = false
         rerollButton.enabled = false
