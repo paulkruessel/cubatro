@@ -7,8 +7,8 @@ trait IController:
   def state: GameState
   def viewState: GameViewState
 
-  def add(observer: Observer): Unit
-  def remove(observer: Observer): Unit
+  def isRunning: Boolean
+  def isRunning_=(value: Boolean): Unit
 
   def start(): Unit
   def handle(command: GameCommand): Either[String, GameState]
@@ -20,3 +20,6 @@ trait IController:
   def selectPlayedDice(oldState: GameState, indices: List[Int]): GameState
   def rollDice(oldState: GameState): GameState
   def scoreDiceInPlay(oldState: GameState): GameState
+
+  def add(observer: Observer): Unit
+  def remove(observer: Observer): Unit

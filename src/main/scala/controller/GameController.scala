@@ -37,7 +37,7 @@ class GameController extends Observable with IController:
   private var currentState: GameState = GameController.defaultInitialState()
   private val undoManager = new UndoManager()
 
-  var isRunning = false
+  var isRunning: Boolean = false
 
   def state: GameState = currentState
 

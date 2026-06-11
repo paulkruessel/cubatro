@@ -6,7 +6,7 @@ import util.Observer
 import scala.swing.*
 import scala.swing.event.*
 
-class Gui (controller: GameController) extends MainFrame with Observer:
+class Gui (controller: IController) extends MainFrame with Observer:
 
     title = "Cubatro"
     preferredSize = new Dimension(1000, 700)
