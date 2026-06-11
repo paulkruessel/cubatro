@@ -134,6 +134,10 @@ class GameController extends Observable:
 
   def handle(command: GameCommand): Either[String, GameState] =
     command match
+      case GameCommand.Quit =>
+        notifyObservers()
+        Right(currentState)
+        
       case GameCommand.Undo =>
         undoManager.undoStep() match
           case Some(_) =>

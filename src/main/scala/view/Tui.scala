@@ -25,6 +25,7 @@ class Tui(
 
       parseSafe(input).getOrElse(GameCommand.Invalid) match
         case GameCommand.Quit =>
+          controller.handle(GameCommand.Quit)
           writeOutput("Game stopped by player.\n")
           running = false
 
