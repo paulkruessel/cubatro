@@ -1,7 +1,7 @@
-import controller.GameController
-import view.Tui
+import controller.{GameController, IController}
+import view.{IView, Tui}
 
 @main def main(): Unit =
-  val controller = new GameController()
-  val tui = new Tui(controller)
+  val controller: IController = new GameController()
+  val tui: IView = new Tui(controller)
   tui.run()

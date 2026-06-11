@@ -33,7 +33,7 @@ case class GameViewState(
     isLose: Boolean
 )
 
-class GameController extends Observable:
+class GameController extends Observable with IController:
   private var currentState: GameState = GameController.defaultInitialState()
   private val undoManager = new UndoManager()
 

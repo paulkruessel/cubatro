@@ -6,10 +6,10 @@ import scala.io.StdIn
 import scala.util.Try
 
 class Tui(
-    controller: GameController,
+    controller: IController,
     readInput: () => String = () => StdIn.readLine(),
     writeOutput: String => Unit = text => print(text)
-) extends Observer:
+) extends IView:
 
   controller.add(this)
 
