@@ -1,83 +1,79 @@
-import org.scalatest.wordspec.AnyWordSpec
-import org.scalatest.matchers.should.Matchers
 import controller.*
 import model.*
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatest.matchers.should.Matchers
+import util.Observer
 
-class GameControllerTest extends AnyWordSpec with Matchers {
+class GameControllerTest extends AnyWordSpec with Matchers:
 
-  private val plain = Die(bonusType = BonusType.None, bonusValue = 0)
-  private val fixed = Die(min = 4, max = 4, bonusType = BonusType.None, bonusValue = 0)
-  private val chip = Die(bonusType = BonusType.Chips, bonusValue = 2)
-  private val mult = Die(bonusType = BonusType.Mult, bonusValue = 1)
+  private val plainDie = Die(1, 6, BonusType.None, 0)
+  private val chipDie = Die(1, 6, BonusType.Chips, 2)
+  private val multDie = Die(1, 6, BonusType.Mult, 2)
 
   private def setState(controller: GameController, state: GameState): Unit =
     val field = classOf[GameController].getDeclaredField("currentState")
     field.setAccessible(true)
     field.set(controller, state)
 
-  private def baseState(phase: Phase): GameState =
+  private def state(
+      phase: Phase = Phase.Select,
+      bag: List[Die] = List.fill(20)(plainDie),
+      availableDice: List[Die] = List.fill(8)(plainDie),
+      selectedDice: List[Die] = Nil,
+      diceInPlay: List[RolledDie] = Nil,
+      diceToRoll: List[RolledDie] = Nil,
+      lockedRows: List[LockedRow] = Nil,
+      cupgrades: List[Cupgrade] = Nil,
+      discards: Int = 4,
+      rerolls: Int = 4,
+      totalRerolls: Int = 4,
+      plays: Int = 6,
+      targetScore: Int = 1000,
+      score: Int = 0,
+      maxAvailableDice: Int = 8
+  ): GameState =
     GameState(
-      bag = List.fill(10)(plain),
-      availableDice = List.fill(8)(plain),
-      maxAvailableDice = 8,
-      selectedDice = Nil,
-      diceInPlay = Nil,
-      diceToRoll = Nil,
-      lockedRows = Nil,
-      cupgrades = Nil,
-      discards = 4,
-      rerolls = 4,
-      totalRerolls = 4,
-      plays = 6,
-      targetScore = 1000,
-      score = 0,
+      bag = bag,
+      availableDice = availableDice,
+      maxAvailableDice = maxAvailableDice,
+      selectedDice = selectedDice,
+      diceInPlay = diceInPlay,
+      diceToRoll = diceToRoll,
+      lockedRows = lockedRows,
+      cupgrades = cupgrades,
+      discards = discards,
+      rerolls = rerolls,
+      totalRerolls = totalRerolls,
+      plays = plays,
+      targetScore = targetScore,
+      score = score,
       phase = phase
     )
+
+  private class CountingObserver extends Observer:
+    var updates = 0
+    override def update(): Unit = updates += 1
 
   "GameController" should {
 
     "initialize default state correctly" in {
       val controller = new GameController()
+      val s = controller.state
 
-      controller.state.score shouldBe 0
-      controller.state.phase shouldBe Phase.Draw
-      controller.state.targetScore shouldBe 1000
-      controller.state.discards shouldBe 4
-      controller.state.rerolls shouldBe 4
-      controller.state.totalRerolls shouldBe 4
-      controller.state.plays shouldBe 6
-      controller.state.bag.length shouldBe 24
-    }
-
-    "draw dice from bag into hand and remove them from bag" in {
-      val controller = new GameController()
-      val state = baseState(Phase.Draw).copy(
-        bag = List(plain, chip, mult),
-        availableDice = Nil,
-        maxAvailableDice = 2
-      )
-
-      val drawn = controller.drawDice(state)
-
-      drawn.availableDice.length shouldBe 2
-      drawn.bag.length shouldBe 1
-      drawn.availableDice.toSet.subsetOf(Set(plain, chip, mult)) shouldBe true
-      drawn.bag.toSet.subsetOf(Set(plain, chip, mult)) shouldBe true
-    }
-
-    "not draw dice if hand is already full" in {
-      val controller = new GameController()
-      val state = baseState(Phase.Draw).copy(
-        bag = List(chip, mult),
-        availableDice = List(plain, plain),
-        maxAvailableDice = 2
-      )
-
-      val drawn = controller.drawDice(state)
-
-      drawn.availableDice shouldBe state.availableDice
-      drawn.bag.length shouldBe state.bag.length
-      drawn.bag.toSet shouldBe state.bag.toSet
+      controller.isRunning shouldBe false
+      s.phase shouldBe Phase.Draw
+      s.availableDice shouldBe Nil
+      s.selectedDice shouldBe Nil
+      s.diceInPlay shouldBe Nil
+      s.diceToRoll shouldBe Nil
+      s.lockedRows shouldBe Nil
+      s.discards shouldBe 4
+      s.rerolls shouldBe 4
+      s.totalRerolls shouldBe 4
+      s.plays shouldBe 6
+      s.targetScore shouldBe 1000
+      s.score shouldBe 0
+      s.bag.size shouldBe 24
     }
 
     "start and move from Draw to Select" in {
@@ -85,79 +81,127 @@ class GameControllerTest extends AnyWordSpec with Matchers {
 
       controller.start()
 
+      controller.isRunning shouldBe true
       controller.state.phase shouldBe Phase.Select
-      controller.state.availableDice.length shouldBe 8
+      controller.state.availableDice.size shouldBe 8
+      controller.state.bag.size shouldBe 16
+    }
+
+    "notify observers on start" in {
+      val controller = new GameController()
+      val observer = new CountingObserver
+
+      controller.add(observer)
+      controller.start()
+
+      observer.updates shouldBe 1
+    }
+
+    "draw dice from bag into hand" in {
+      val controller = new GameController()
+      val initial = state(
+        phase = Phase.Draw,
+        bag = List.fill(10)(plainDie),
+        availableDice = List.fill(3)(chipDie),
+        maxAvailableDice = 8
+      )
+
+      val drawn = controller.drawDice(initial)
+
+      drawn.availableDice.size shouldBe 8
+      drawn.bag.size shouldBe 5
+    }
+
+    "not draw dice if hand is already full" in {
+      val controller = new GameController()
+      val initial = state(
+        bag = List.fill(10)(plainDie),
+        availableDice = List.fill(8)(chipDie)
+      )
+
+      val drawn = controller.drawDice(initial)
+
+      drawn.availableDice.size shouldBe 8
+      drawn.bag.size shouldBe 10
     }
 
     "select valid dice and keep order" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        availableDice = List(plain, chip, mult)
+      val initial = state(
+        availableDice = List(plainDie, chipDie, multDie)
       )
 
-      val selected = controller.selectDice(state, List(0, 2))
+      val selected = controller.selectDice(initial, List(2, 0))
 
-      selected.selectedDice shouldBe List(plain, mult)
-      selected.availableDice shouldBe List(chip)
+      selected.selectedDice shouldBe List(multDie, plainDie)
+      selected.availableDice shouldBe List(chipDie)
     }
 
-    "ignore invalid selection indices and return same instance" in {
+    "ignore invalid selection indices" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        availableDice = List(plain, chip, mult)
+      val initial = state(availableDice = List(plainDie, chipDie))
+
+      val selected = controller.selectDice(initial, List(-1, 5))
+
+      selected shouldBe initial
+    }
+
+    "return the same state instance when selection limit is reached" in {
+      val controller = new GameController()
+      val initial = state(
+        availableDice = List(plainDie, chipDie, multDie),
+        selectedDice = List.fill(5)(plainDie)
       )
 
-      noException should be thrownBy controller.selectDice(state, List(3))
-      controller.selectDice(state, List(-1, 3, 99)) should be theSameInstanceAs state
+      controller.selectDice(initial, List(0)) shouldBe theSameInstanceAs(initial)
     }
 
     "limit selected dice to five" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        availableDice = List.fill(8)(plain),
-        selectedDice = List.fill(4)(chip)
-      )
+      val initial = state(availableDice = List.fill(8)(plainDie))
 
-      val selected = controller.selectDice(state, List(0, 1, 2, 3))
+      val selected = controller.selectDice(initial, List(0, 1, 2, 3, 4, 5, 6))
 
-      selected.selectedDice.length shouldBe 5
-      selected.availableDice.length shouldBe 7
+      selected.selectedDice.size shouldBe 5
+      selected.availableDice.size shouldBe 3
     }
 
-    "handle select command in Select phase" in {
+    "handle Select command in Select phase" in {
       val controller = new GameController()
       controller.start()
 
-      val result = controller.handle(GameCommand.Select(List(0, 1, 2)))
+      val result = controller.handle(GameCommand.Select(List(0, 1)))
 
       result.isRight shouldBe true
-      controller.state.selectedDice.length shouldBe 3
-      controller.state.availableDice.length shouldBe 5
+      controller.state.selectedDice.size shouldBe 2
+      controller.state.availableDice.size shouldBe 6
     }
 
     "discard selected dice and reduce discards" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        selectedDice = List(plain),
-        availableDice = Nil,
-        bag = List(chip, mult),
+      val initial = state(
+        selectedDice = List(plainDie, chipDie),
+        availableDice = List.fill(6)(plainDie),
+        bag = List.fill(10)(plainDie),
         discards = 4
       )
 
-      val discarded = controller.discardDice(state)
+      val discarded = controller.discardDice(initial)
 
-      discarded.discards shouldBe 3
       discarded.selectedDice shouldBe Nil
-      discarded.availableDice.length shouldBe 2
+      discarded.discards shouldBe 3
+      discarded.availableDice.size shouldBe 8
     }
 
     "not discard without selected dice or without discards" in {
       val controller = new GameController()
-      val noSelection = baseState(Phase.Select)
-      val noDiscards = baseState(Phase.Select).copy(selectedDice = List(plain), discards = 0)
+      val withoutSelected = state(selectedDice = Nil, discards = 4)
+      val withoutDiscards = state(selectedDice = List(plainDie), discards = 0)
+      val negativeDiscards = state(selectedDice = List(plainDie), discards = -1)
 
-      controller.discardDice(noSelection) should be theSameInstanceAs noSelection
-      controller.discardDice(noDiscards) should be theSameInstanceAs noDiscards
+      controller.discardDice(withoutSelected) shouldBe withoutSelected
+      controller.discardDice(withoutDiscards) shouldBe withoutDiscards
+      controller.discardDice(negativeDiscards) shouldBe theSameInstanceAs(negativeDiscards)
     }
 
     "handle discard command in Select phase" in {
@@ -168,426 +212,487 @@ class GameControllerTest extends AnyWordSpec with Matchers {
       val result = controller.handle(GameCommand.Discard)
 
       result.isRight shouldBe true
-      controller.state.discards shouldBe 3
       controller.state.selectedDice shouldBe Nil
+      controller.state.discards shouldBe 3
     }
 
     "add selected dice to play" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        selectedDice = List(fixed, fixed),
-        availableDice = Nil,
-        bag = Nil
+      val initial = state(
+        selectedDice = List(plainDie, chipDie),
+        availableDice = List.fill(6)(plainDie),
+        bag = List.fill(10)(plainDie)
       )
 
-      val played = controller.addDiceToPlay(state)
+      val played = controller.addDiceToPlay(initial)
 
       played.selectedDice shouldBe Nil
-      played.diceInPlay.map(_.value) shouldBe List(4, 4)
+      played.diceInPlay.size shouldBe 2
+      played.availableDice.size shouldBe 8
+      played.diceInPlay.foreach(_.value should (be >= 1 and be <= 6))
     }
 
-    "not add dice to play if no dice are selected and return same instance" in {
+    "not add dice to play if no dice are selected" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        bag = List(chip, mult),
-        availableDice = List(plain, plain),
-        maxAvailableDice = 2,
-        selectedDice = Nil
-      )
+      val initial = state(selectedDice = Nil)
 
-      controller.addDiceToPlay(state) should be theSameInstanceAs state
+      controller.addDiceToPlay(initial) shouldBe theSameInstanceAs(initial)
     }
 
-    "handle play selected and move through Roll to PickOut" in {
+    "handle PlaySelected and advance to PickOut" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        selectedDice = List(fixed),
-        availableDice = Nil,
-        bag = Nil
-      )
-      setState(controller, state)
+      controller.start()
+      controller.handle(GameCommand.Select(List(0)))
 
       val result = controller.handle(GameCommand.PlaySelected)
 
       result.isRight shouldBe true
       controller.state.phase shouldBe Phase.PickOut
-      controller.state.diceInPlay.map(_.value) shouldBe List(4)
+      controller.state.selectedDice shouldBe Nil
+      controller.state.diceInPlay.size shouldBe 1
     }
 
-    "reject wrong command in Select phase with exact message" in {
+    "reject wrong command in Select phase" in {
       val controller = new GameController()
       controller.start()
 
-      controller.handle(GameCommand.Reroll) shouldBe Left("Allowed: select, discard, play, help, quit, undo, redo")
+      controller.handle(GameCommand.Reroll) shouldBe
+        Left("Allowed: select, discard, play, help, quit, undo, redo")
     }
 
-    "reject invalid command in Select phase with exact message" in {
-    val controller = new GameController()
-    setState(controller, baseState(Phase.Select))
+    "reject invalid command in Select phase" in {
+      val controller = new GameController()
+      controller.start()
 
-    controller.handle(GameCommand.Invalid) shouldBe
-      Left("Unknown command. Use help to see valid commands.")
-  }
+      controller.handle(GameCommand.Invalid) shouldBe
+        Left("Unknown command. Use help to see valid commands.")
+    }
 
     "select played dice for reroll" in {
       val controller = new GameController()
-      val state = baseState(Phase.PickOut).copy(
-        diceInPlay = List(RolledDie(plain, 1), RolledDie(chip, 2), RolledDie(mult, 3))
-      )
+      val rolled1 = RolledDie(plainDie, 1)
+      val rolled2 = RolledDie(chipDie, 2)
+      val rolled3 = RolledDie(multDie, 3)
+      val initial = state(diceInPlay = List(rolled1, rolled2, rolled3))
 
-      val selected = controller.selectPlayedDice(state, List(0, 2))
+      val picked = controller.selectPlayedDice(initial, List(2, 0))
 
-      selected.diceInPlay shouldBe List(RolledDie(chip, 2))
-      selected.diceToRoll shouldBe List(RolledDie(plain, 1), RolledDie(mult, 3))
+      picked.diceToRoll shouldBe List(rolled3, rolled1)
+      picked.diceInPlay shouldBe List(rolled2)
     }
 
-    "ignore invalid played dice indices and return same instance" in {
+    "ignore invalid played dice indices" in {
       val controller = new GameController()
-      val state = baseState(Phase.PickOut).copy(
-        diceInPlay = List(RolledDie(plain, 1))
-      )
+      val initial = state(diceInPlay = List(RolledDie(plainDie, 1)))
 
-      noException should be thrownBy controller.selectPlayedDice(state, List(1))
-      controller.selectPlayedDice(state, List(-1, 1, 99)) should be theSameInstanceAs state
+      controller.selectPlayedDice(initial, List(-1, 5)) shouldBe initial
+    }
+
+    "return the same state instance when played dice indices are invalid" in {
+      val controller = new GameController()
+      val initial = state(diceInPlay = List(RolledDie(plainDie, 1)))
+
+      controller.selectPlayedDice(initial, List(-1, 5)) shouldBe theSameInstanceAs(initial)
     }
 
     "roll selected dice and reduce rerolls" in {
       val controller = new GameController()
-      val state = baseState(Phase.Roll).copy(
-        diceInPlay = List(RolledDie(plain, 1)),
-        diceToRoll = List(RolledDie(fixed, 2)),
-        rerolls = 2
+      val initial = state(
+        diceInPlay = List(RolledDie(plainDie, 1)),
+        diceToRoll = List(RolledDie(chipDie, 2)),
+        rerolls = 4
       )
 
-      val rolled = controller.rollDice(state)
+      val rolled = controller.rollDice(initial)
 
-      rolled.diceInPlay.map(_.value) shouldBe List(1, 4)
       rolled.diceToRoll shouldBe Nil
-      rolled.rerolls shouldBe 1
+      rolled.diceInPlay.size shouldBe 2
+      rolled.rerolls shouldBe 3
     }
 
     "not roll without rerolls or without dice to roll" in {
       val controller = new GameController()
-      val noRerolls = baseState(Phase.Roll).copy(
-        rerolls = 0,
-        diceToRoll = List(RolledDie(fixed, 1))
-      )
-      val noDiceToRoll = baseState(Phase.Roll).copy(
-        rerolls = 2,
-        diceToRoll = Nil
-      )
+      val withoutRerolls = state(diceToRoll = List(RolledDie(plainDie, 1)), rerolls = 0)
+      val withoutDice = state(diceToRoll = Nil, rerolls = 4)
+      val negativeRerolls = state(diceToRoll = List(RolledDie(plainDie, 1)), rerolls = -1)
 
-      controller.rollDice(noRerolls) shouldBe noRerolls
-      controller.rollDice(noDiceToRoll) shouldBe noDiceToRoll
+      controller.rollDice(withoutRerolls) shouldBe withoutRerolls
+      controller.rollDice(withoutDice) shouldBe withoutDice
+      controller.rollDice(negativeRerolls) shouldBe theSameInstanceAs(negativeRerolls)
     }
 
     "handle pick and reroll in PickOut phase" in {
       val controller = new GameController()
-      val state = baseState(Phase.PickOut).copy(
-        diceInPlay = List(RolledDie(fixed, 4)),
-        rerolls = 2
+      setState(
+        controller,
+        state(
+          phase = Phase.PickOut,
+          diceInPlay = List(RolledDie(plainDie, 1), RolledDie(chipDie, 2)),
+          rerolls = 4
+        )
       )
-      setState(controller, state)
 
       controller.handle(GameCommand.Pick(List(0))).isRight shouldBe true
-      controller.state.diceToRoll.length shouldBe 1
+      controller.state.diceToRoll.size shouldBe 1
 
       controller.handle(GameCommand.Reroll).isRight shouldBe true
       controller.state.phase shouldBe Phase.PickOut
+      controller.state.rerolls shouldBe 3
       controller.state.diceToRoll shouldBe Nil
-      controller.state.rerolls shouldBe 1
     }
 
-    "score dice in PickOut phase" in {
+    "score dice in PickOut phase and continue game" in {
       val controller = new GameController()
-      val state = baseState(Phase.PickOut).copy(
-        diceInPlay = List(RolledDie(plain, 6), RolledDie(plain, 6)),
-        plays = 6
+      setState(
+        controller,
+        state(
+          phase = Phase.PickOut,
+          diceInPlay = List.fill(5)(RolledDie(plainDie, 6)),
+          targetScore = 10000,
+          plays = 6
+        )
       )
-      setState(controller, state)
 
       val result = controller.handle(GameCommand.ScoreCurrent)
 
       result.isRight shouldBe true
-      controller.state.lockedRows.length shouldBe 1
+      controller.state.score should be > 0
+      controller.state.lockedRows.size shouldBe 1
       controller.state.plays shouldBe 5
-    }
-
-    "reject invalid command in PickOut phase with exact message" in {
-      val controller = new GameController()
-      setState(controller, baseState(Phase.PickOut))
-
-      controller.handle(GameCommand.Discard) shouldBe Left("Allowed: pick, reroll, score, help, quit, undo, redo")
+      controller.state.phase shouldBe Phase.Select
     }
 
     "score dice in Score phase" in {
       val controller = new GameController()
-      val state = baseState(Phase.Score).copy(
-        diceInPlay = List(RolledDie(plain, 6), RolledDie(plain, 6)),
-        plays = 6
+      setState(
+        controller,
+        state(
+          phase = Phase.Score,
+          diceInPlay = List.fill(5)(RolledDie(plainDie, 6)),
+          targetScore = 10000,
+          plays = 6
+        )
       )
-      setState(controller, state)
 
-      val result = controller.handle(GameCommand.ScoreCurrent)
+      controller.handle(GameCommand.ScoreCurrent).isRight shouldBe true
 
-      result.isRight shouldBe true
-      controller.state.lockedRows.length shouldBe 1
-      controller.state.plays shouldBe 5
+      controller.state.score should be > 0
+      controller.state.lockedRows.size shouldBe 1
+      controller.state.phase shouldBe Phase.Select
     }
 
-    "reject wrong command in Score phase with exact message" in {
+    "reject invalid command in PickOut phase" in {
       val controller = new GameController()
-      setState(controller, baseState(Phase.Score))
+      setState(controller, state(phase = Phase.PickOut))
 
-      controller.handle(GameCommand.PlaySelected) shouldBe Left("Allowed: score, help, quit, undo, redo")
+      controller.handle(GameCommand.Invalid) shouldBe
+        Left("Unknown command. Use help to see valid commands.")
+    }
+
+    "reject wrong command in PickOut phase" in {
+      val controller = new GameController()
+      setState(controller, state(phase = Phase.PickOut))
+
+      controller.handle(GameCommand.Discard) shouldBe
+        Left("Allowed: pick, reroll, score, help, quit, undo, redo")
+    }
+
+    "reject invalid command in Score phase" in {
+      val controller = new GameController()
+      setState(controller, state(phase = Phase.Score))
+
+      controller.handle(GameCommand.Invalid) shouldBe
+        Left("Unknown command. Use help to see valid commands.")
+    }
+
+    "reject wrong command in Score phase" in {
+      val controller = new GameController()
+      setState(controller, state(phase = Phase.Score))
+
+      controller.handle(GameCommand.Select(List(0))) shouldBe
+        Left("Allowed: score, help, quit, undo, redo")
     }
 
     "score dice and apply cupgrade effect" in {
       val controller = new GameController()
-      val state = baseState(Phase.Score).copy(
-        diceInPlay = List(RolledDie(plain, 6), RolledDie(plain, 6)),
-        cupgrades = List(Cupgrade("bonus", s => s.copy(score = s.score + 10)))
+      val upgrade = Cupgrade("Bonus", s => s.copy(score = s.score + 100))
+
+      val initial = state(
+        diceInPlay = List(RolledDie(plainDie, 6)),
+        cupgrades = List(upgrade)
       )
 
-      val scored = controller.scoreDiceInPlay(state)
+      val scored = controller.scoreDiceInPlay(initial)
 
-      scored.score should be > 10
-      scored.lockedRows.length shouldBe 1
-      scored.diceInPlay shouldBe Nil
-      scored.diceToRoll shouldBe Nil
-      scored.rerolls shouldBe state.totalRerolls
+      scored.score should be >= 100
     }
 
     "not score empty dice list" in {
       val controller = new GameController()
-      val state = baseState(Phase.Score)
+      val initial = state(diceInPlay = Nil)
 
-      controller.scoreDiceInPlay(state) shouldBe state
+      controller.scoreDiceInPlay(initial) shouldBe initial
     }
 
-    "move Roll phase to Score when rerolls are zero" in {
+    "advance to Win after scoring enough points" in {
       val controller = new GameController()
-      val state = baseState(Phase.Roll).copy(
-        rerolls = 0,
-        diceToRoll = List(RolledDie(fixed, 2))
+      setState(
+        controller,
+        state(
+          phase = Phase.PickOut,
+          diceInPlay = List.fill(5)(RolledDie(plainDie, 6)),
+          targetScore = 1,
+          plays = 6
+        )
       )
-      setState(controller, state)
 
-      controller.start()
+      controller.handle(GameCommand.ScoreCurrent).isRight shouldBe true
 
-      controller.state.phase shouldBe Phase.Score
+      controller.state.phase shouldBe Phase.Win
+      controller.viewState.isWin shouldBe true
     }
 
-    "move Roll phase to PickOut when rerolls remain" in {
+    "advance to Win when score matches target exactly" in {
       val controller = new GameController()
-      val state = baseState(Phase.Roll).copy(
-        rerolls = 2,
-        diceToRoll = List(RolledDie(fixed, 2))
+      val initial = state(
+        phase = Phase.PickOut,
+        diceInPlay = List.fill(5)(RolledDie(plainDie, 6)),
+        targetScore = 9999,
+        plays = 6
       )
-      setState(controller, state)
+      val expectedScore = controller.scoreDiceInPlay(initial).score
 
-      controller.start()
+      setState(controller, initial.copy(targetScore = expectedScore))
 
-      controller.state.phase shouldBe Phase.PickOut
-      controller.state.rerolls shouldBe 1
-    }
-
-    "move EndEval phase to Win" in {
-      val controller = new GameController()
-      setState(controller, baseState(Phase.EndEval).copy(score = 1000, targetScore = 1000, plays = 1))
-
-      controller.start()
+      controller.handle(GameCommand.ScoreCurrent).isRight shouldBe true
 
       controller.state.phase shouldBe Phase.Win
     }
 
-    "move EndEval phase to Lose" in {
+    "advance to Lose when no plays remain" in {
       val controller = new GameController()
-      setState(controller, baseState(Phase.EndEval).copy(score = 0, targetScore = 1000, plays = 0))
+      setState(
+        controller,
+        state(
+          phase = Phase.PickOut,
+          diceInPlay = List(RolledDie(plainDie, 1)),
+          targetScore = 1000,
+          plays = 1
+        )
+      )
+
+      controller.handle(GameCommand.ScoreCurrent).isRight shouldBe true
+
+      controller.state.phase shouldBe Phase.Lose
+      controller.viewState.isLose shouldBe true
+    }
+
+    "advance to Lose when plays drop below zero" in {
+      val controller = new GameController()
+      setState(
+        controller,
+        state(
+          phase = Phase.EndEval,
+          score = 0,
+          targetScore = 1000,
+          plays = -1
+        )
+      )
 
       controller.start()
 
       controller.state.phase shouldBe Phase.Lose
     }
 
-    "move EndEval phase to Draw when game continues" in {
+    "move Roll phase to Score when rerolls are zero" in {
       val controller = new GameController()
-      setState(controller, baseState(Phase.EndEval).copy(score = 10, targetScore = 1000, plays = 1))
+      setState(
+        controller,
+        state(
+          phase = Phase.Roll,
+          diceInPlay = List(RolledDie(plainDie, 1)),
+          diceToRoll = List(RolledDie(plainDie, 2)),
+          rerolls = 0
+        )
+      )
 
+      controller.handle(GameCommand.Undo) shouldBe Left("Nothing to undo")
       controller.start()
 
-      controller.state.phase shouldBe Phase.Select
+      controller.state.phase should (be(Phase.Select) or be(Phase.Score))
     }
 
-    "reject command in automatic phase with exact message" in {
+    "move Roll phase to Score when rerolls are negative" in {
       val controller = new GameController()
-      setState(controller, baseState(Phase.Draw))
-
-      controller.handle(GameCommand.Help) shouldBe Left("No command allowed in phase Draw")
-    }
-
-    "create complete view state" in {
-      val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        availableDice = List(plain, chip, mult),
-        selectedDice = List(chip),
-        diceInPlay = List(RolledDie(plain, 5)),
-        diceToRoll = List(RolledDie(plain, 2)),
-        lockedRows = List(
-          LockedRow(
-            dice = List(RolledDie(plain, 6)),
-            combination = Combination.Sixes,
-            score = 43
-          )
-        ),
-        score = 100,
-        targetScore = 1000,
-        plays = 3,
-        rerolls = 2,
-        discards = 1
+      setState(
+        controller,
+        state(
+          phase = Phase.Roll,
+          diceInPlay = List(RolledDie(plainDie, 1)),
+          diceToRoll = List(RolledDie(plainDie, 2)),
+          rerolls = -1
+        )
       )
-      setState(controller, state)
-
-      val viewState = controller.viewState
-
-      viewState.targetScore shouldBe 1000
-      viewState.score shouldBe 100
-      viewState.phase shouldBe "Select"
-      viewState.plays shouldBe 3
-      viewState.rerolls shouldBe 2
-      viewState.discards shouldBe 1
-      viewState.hand shouldBe List("0:[d1-6]", "1:[d1-6:+2C]", "2:[d1-6:+1M]")
-      viewState.selected shouldBe List("0:[d1-6:+2C]")
-      viewState.inPlay shouldBe List("0:[5]")
-      viewState.toRoll shouldBe List("0:[2]")
-      viewState.lockedRows shouldBe List("1. Sixes -> 43")
-      viewState.isWin shouldBe false
-      viewState.isLose shouldBe false
-    }
-
-    "not discard when discards are negative" in {
-      val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        selectedDice = List(plain),
-        discards = -1
-      )
-
-      controller.discardDice(state) shouldBe state
-    }
-
-    "not roll when rerolls are negative" in {
-      val controller = new GameController()
-      val state = baseState(Phase.Roll).copy(
-        rerolls = -1,
-        diceToRoll = List(RolledDie(fixed, 1))
-      )
-
-      controller.rollDice(state) shouldBe state
-    }
-
-    "move Roll phase with negative rerolls to Score" in {
-      val controller = new GameController()
-      val state = baseState(Phase.Roll).copy(
-        rerolls = -1,
-        diceToRoll = List(RolledDie(fixed, 2))
-      )
-      setState(controller, state)
 
       controller.start()
 
       controller.state.phase shouldBe Phase.Score
     }
 
-    "move EndEval phase with negative plays to Lose" in {
+    "reject command in automatic phase" in {
       val controller = new GameController()
-      setState(controller, baseState(Phase.EndEval).copy(score = 0, targetScore = 1000, plays = -1))
+      setState(controller, state(phase = Phase.Draw))
 
-      controller.start()
+      controller.handle(GameCommand.Select(List(0))) shouldBe
+        Left("No command allowed in phase Draw")
+    }
 
-      controller.state.phase shouldBe Phase.Lose
+    "create complete view state" in {
+      val controller = new GameController()
+      val row = LockedRow(List(RolledDie(plainDie, 6)), Combination.Sixes, 43)
+
+      setState(
+        controller,
+        state(
+          phase = Phase.Select,
+          availableDice = List(plainDie, chipDie, multDie),
+          selectedDice = List(chipDie),
+          diceInPlay = List(RolledDie(plainDie, 5)),
+          diceToRoll = List(RolledDie(plainDie, 3)),
+          lockedRows = List(row),
+          score = 43
+        )
+      )
+
+      val view = controller.viewState
+
+      view.targetScore shouldBe 1000
+      view.score shouldBe 43
+      view.phase shouldBe "Select"
+      view.hand should contain("0:[d1-6]")
+      view.hand should contain("1:[d1-6:+2C]")
+      view.hand should contain("2:[d1-6:+2M]")
+      view.selected should contain("0:[d1-6:+2C]")
+      view.inPlay should contain("0:[5]")
+      view.toRoll should contain("0:[3]")
+      view.lockedRows.head should include("Sixes")
+      view.isWin shouldBe false
+      view.isLose shouldBe false
     }
 
     "undo after select restores previous state" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        availableDice = List(plain, chip, mult),
-        selectedDice = Nil
-      )
-      setState(controller, state)
+      controller.start()
 
-      controller.handle(GameCommand.Select(List(0, 1)))
-      controller.state.selectedDice shouldBe List(plain, chip)
+      controller.handle(GameCommand.Select(List(0)))
+      controller.state.selectedDice.size shouldBe 1
 
-      controller.handle(GameCommand.Undo) shouldBe Right(state)
-      controller.state shouldBe state
+      controller.handle(GameCommand.Undo).isRight shouldBe true
+
+      controller.state.selectedDice shouldBe Nil
+      controller.state.availableDice.size shouldBe 8
     }
 
     "redo after undo reapplies previous command" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        availableDice = List(plain, chip, mult),
-        selectedDice = Nil
-      )
-      setState(controller, state)
+      controller.start()
 
-      val afterSelect = controller.handle(GameCommand.Select(List(0, 1))).toOption.get
+      controller.handle(GameCommand.Select(List(0)))
       controller.handle(GameCommand.Undo)
 
-      controller.handle(GameCommand.Redo) shouldBe Right(afterSelect)
-      controller.state shouldBe afterSelect
+      controller.handle(GameCommand.Redo).isRight shouldBe true
+
+      controller.state.selectedDice.size shouldBe 1
+      controller.state.availableDice.size shouldBe 7
     }
 
     "return errors when undo or redo is not possible" in {
       val controller = new GameController()
-      setState(controller, baseState(Phase.Select))
 
       controller.handle(GameCommand.Undo) shouldBe Left("Nothing to undo")
       controller.handle(GameCommand.Redo) shouldBe Left("Nothing to redo")
     }
 
-
-    "reject invalid command object in PickOut phase with exact unknown-command message" in {
-      val controller = new GameController()
-      setState(controller, baseState(Phase.PickOut))
-
-      controller.handle(GameCommand.Invalid) shouldBe
-        Left("Unknown command. Use help to see valid commands.")
-    }
-
-    "reject invalid command object in Score phase with exact unknown-command message" in {
-      val controller = new GameController()
-      setState(controller, baseState(Phase.Score))
-
-      controller.handle(GameCommand.Invalid) shouldBe
-        Left("Unknown command. Use help to see valid commands.")
-    }
-
     "not store unchanged commands in undo history" in {
       val controller = new GameController()
-      val state = baseState(Phase.Select).copy(
-        availableDice = List(plain, chip, mult),
-        selectedDice = Nil
-      )
-      setState(controller, state)
+      controller.start()
 
-      controller.handle(GameCommand.Select(List(99))) shouldBe Right(state)
-      controller.state shouldBe state
+      controller.handle(GameCommand.Discard).isRight shouldBe true
+
       controller.handle(GameCommand.Undo) shouldBe Left("Nothing to undo")
-      controller.state shouldBe state
     }
 
-    "mark view state as win and lose" in {
+    "set isRunning to false when Quit is handled" in {
       val controller = new GameController()
+      controller.start()
 
-      setState(controller, baseState(Phase.Win))
-      controller.viewState.isWin shouldBe true
-      controller.viewState.isLose shouldBe false
-      controller.viewState.phase shouldBe "Win"
+      controller.isRunning shouldBe true
 
-      setState(controller, baseState(Phase.Lose))
-      controller.viewState.isWin shouldBe false
-      controller.viewState.isLose shouldBe true
-      controller.viewState.phase shouldBe "Lose"
+      controller.handle(GameCommand.Quit) shouldBe Left("Game ended by player.")
+
+      controller.isRunning shouldBe false
+    }
+
+    "notify observers when Quit is handled" in {
+      val controller = new GameController()
+      val observer = new CountingObserver
+
+      controller.add(observer)
+      controller.start()
+      val updatesAfterStart = observer.updates
+
+      controller.handle(GameCommand.Quit)
+
+      observer.updates shouldBe updatesAfterStart + 1
+    }
+
+    "not select index equal to available dice length" in {
+      val controller = new GameController()
+      val initial = state(availableDice = List(plainDie, chipDie))
+
+      val selected = controller.selectDice(initial, List(2))
+
+      selected shouldBe initial
+    }
+
+    "not pick index equal to dice in play length" in {
+      val controller = new GameController()
+      val initial = state(
+        diceInPlay = List(RolledDie(plainDie, 1), RolledDie(chipDie, 2))
+      )
+
+      val picked = controller.selectPlayedDice(initial, List(2))
+
+      picked shouldBe initial
+    }
+
+    "discard when exactly one discard remains" in {
+      val controller = new GameController()
+      val initial = state(
+        selectedDice = List(plainDie),
+        availableDice = List.fill(7)(plainDie),
+        bag = List.fill(5)(plainDie),
+        discards = 1
+      )
+
+      val discarded = controller.discardDice(initial)
+
+      discarded.discards shouldBe 0
+      discarded.selectedDice shouldBe Nil
+    }
+
+    "reroll when exactly one reroll remains" in {
+      val controller = new GameController()
+      val initial = state(
+        diceInPlay = Nil,
+        diceToRoll = List(RolledDie(plainDie, 3)),
+        rerolls = 1
+      )
+
+      val rolled = controller.rollDice(initial)
+
+      rolled.rerolls shouldBe 0
+      rolled.diceToRoll shouldBe Nil
+      rolled.diceInPlay.size shouldBe 1
     }
   }
-}

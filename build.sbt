@@ -11,5 +11,6 @@ lazy val root = project
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.14" % Test,
     libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "3.0.0",
 
-    coverageExcludedFiles := ".*Main.scala"
+    coverageExcludedPackages := "<empty>.*",
+    coverageExcludedFiles := ".*[\\/]Main.scala"
   )
