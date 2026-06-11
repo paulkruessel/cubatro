@@ -37,6 +37,8 @@ class GameController extends Observable:
   private var currentState: GameState = GameController.defaultInitialState()
   private val undoManager = new UndoManager()
 
+  var isRunning = false
+
   def state: GameState = currentState
 
   def viewState: GameViewState =
@@ -135,9 +137,9 @@ class GameController extends Observable:
   def handle(command: GameCommand): Either[String, GameState] =
     command match
       case GameCommand.Quit =>
+        isRunning = false
         notifyObservers()
-        Right(currentState)
-        
+        Left("Game ended by player.")
       case GameCommand.Undo =>
         undoManager.undoStep() match
           case Some(_) =>
@@ -209,6 +211,7 @@ class GameController extends Observable:
             Left(error)
 
   def start(): Unit =
+    isRunning = true
     currentState = advance(currentState)
     notifyObservers()
 

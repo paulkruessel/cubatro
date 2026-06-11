@@ -17,18 +17,12 @@ class Tui(
     writeOutput(render(controller.viewState) + "\n")
 
   def run(): Unit =
-    var running = true
 
-    while running do
+    while controller.isRunning do
       writeOutput(prompt(controller.viewState.phase))
       val input = readInput()
 
       parseSafe(input).getOrElse(GameCommand.Invalid) match
-        case GameCommand.Quit =>
-          controller.handle(GameCommand.Quit)
-          writeOutput("Game stopped by player.\n")
-          running = false
-
         case GameCommand.Help =>
           writeOutput(help(controller.viewState.phase) + "\n")
 
@@ -40,7 +34,7 @@ class Tui(
               val viewState = controller.viewState
               if viewState.isWin || viewState.isLose then
                 writeOutput(if viewState.isWin then "You win.\n" else "You lose.\n")
-                running = false
+                controller.isRunning = false
 
   def parseSafe(input: String): Try[GameCommand] =
     Try(parse(input))

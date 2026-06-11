@@ -64,7 +64,7 @@ class Gui (controller: GameController) extends MainFrame with Observer:
                 case ButtonClicked(`scoreButton`)   => handle(GameCommand.ScoreCurrent)
                 case ButtonClicked(`undoButton`)    => handle(GameCommand.Undo)
                 case ButtonClicked(`redoButton`)    => handle(GameCommand.Redo)
-                case ButtonClicked(`quitButton`)    => close()
+                case ButtonClicked(`quitButton`)    => handle(GameCommand.Quit); close()
             }
 
         new FlowPanel(
