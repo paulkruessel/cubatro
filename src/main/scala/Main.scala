@@ -1,5 +1,5 @@
-import controller.GameController
-import view.{Gui, Tui}
+import controller.{GameController, IController}
+import view.{Gui, IView, Tui}
 
 import java.awt.GraphicsEnvironment
 import scala.swing.Swing
@@ -9,14 +9,15 @@ import scala.swing.Swing
 
 def runApp(
     isHeadless: Boolean = GraphicsEnvironment.isHeadless(),
-    createTui: GameController => Tui = controller => new Tui(controller),
-    startGui: GameController => Unit = controller =>
+    createController: () => IController = () => new GameController(),
+    createTui: IController => IView = controller => new Tui(controller),
+    startGui: IController => Unit = controller =>
       Swing.onEDT {
         val gui = new Gui(controller)
         gui.visible = true
       }
 ): Unit =
-  val controller = new GameController()
+  val controller = createController()
   val tui = createTui(controller)
 
   controller.start()
