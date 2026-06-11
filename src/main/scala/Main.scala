@@ -2,8 +2,6 @@ import controller.GameController
 import view.{Gui, Tui}
 
 import java.awt.GraphicsEnvironment
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 import scala.swing.Swing
 
 @main def main(): Unit =
@@ -20,6 +18,4 @@ import scala.swing.Swing
   else
     println("GUI not started: no graphical display available.")
 
-  Future {
-    tui.run()
-  }
+  tui.run()
