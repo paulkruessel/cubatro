@@ -24,6 +24,15 @@ class Gui (controller: GameController) extends MainFrame with Observer:
     }
     private val messageLabel = new Label("")
 
+
+    private val discardButton = new Button("Discard")
+    private val playButton = new Button("Play")
+    private val rerollButton = new Button("Reroll")
+    private val scoreButton = new Button("Score")
+    private val undoButton = new Button("Undo")
+    private val redoButton = new Button("Redo")
+    private val quitButton = new Button("Quit")
+
     contents = new BorderPanel {
         layout(statusLabel) = BorderPanel.Position.North
 
@@ -45,13 +54,6 @@ class Gui (controller: GameController) extends MainFrame with Observer:
     }
 
     private def actionPanel: FlowPanel = 
-        val discardButton = new Button("Discard")
-        val playButton = new Button("Play")
-        val rerollButton = new Button("Reroll")
-        val scoreButton = new Button("Score")
-        val undoButton = new Button("Undo")
-        val redoButton = new Button("Redo")
-        val quitButton = new Button("Quit")
 
         listenTo(discardButton, playButton, rerollButton, scoreButton, undoButton, redoButton, quitButton)
 
@@ -96,8 +98,12 @@ class Gui (controller: GameController) extends MainFrame with Observer:
                 if state.lockedRows.isEmpty then "-"
                 else state.lockedRows.mkString("\n")
 
-            if state.isWin then messageLabel.text = "You win."
-            if state.isLose then messageLabel.text = "You lose."
+            if state.isWin then 
+                messageLabel.text = "You win."
+                disableGameButtons()
+            else if state.isLose then 
+                messageLabel.text = "You lose."
+                disableGameButtons()
 
             peer.revalidate()
             peer.repaint()
@@ -126,3 +132,12 @@ class Gui (controller: GameController) extends MainFrame with Observer:
 
         panel.peer.revalidate()
         panel.peer.repaint()
+
+    private def disableGameButtons(): Unit =
+        
+        discardButton.enabled = false
+        playButton.enabled = false
+        rerollButton.enabled = false
+        scoreButton.enabled = false
+        undoButton.enabled = false
+        redoButton.enabled = false
