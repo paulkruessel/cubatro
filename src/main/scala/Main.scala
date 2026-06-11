@@ -14,6 +14,8 @@ import scala.swing.Swing
     gui.visible = true
   }
 
+  controller.start()
+
   Future {
     tui.run()
   }

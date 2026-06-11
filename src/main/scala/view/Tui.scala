@@ -17,7 +17,6 @@ class Tui(
     writeOutput(render(controller.viewState) + "\n")
 
   def run(): Unit =
-    controller.start()
     var running = true
 
     while running do
