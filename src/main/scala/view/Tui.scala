@@ -17,6 +17,8 @@ class Tui(
     writeOutput(render(controller.viewState) + "\n")
 
   def run(): Unit =
+    if !controller.isRunning then
+      controller.start()
 
     while controller.isRunning do
       writeOutput(prompt(controller.viewState.phase))
@@ -25,6 +27,10 @@ class Tui(
       parseSafe(input).getOrElse(GameCommand.Invalid) match
         case GameCommand.Help =>
           writeOutput(help(controller.viewState.phase) + "\n")
+
+        case GameCommand.Quit =>
+          controller.handle(GameCommand.Quit)
+          writeOutput("Game stopped by player.\n")
 
         case command =>
           controller.handle(command) match
