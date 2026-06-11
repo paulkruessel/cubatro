@@ -142,9 +142,14 @@ class GuiTest extends AnyWordSpec with Matchers:
       textAreas(gui).head.getText shouldBe "-"
     }
 
-    "initialize empty labels and a read-only rows area before the first update" in withRawGui { (_, gui) =>
-      labels(gui).count(_.getText.isEmpty) shouldBe 2
-      textAreas(gui).head.isEditable shouldBe false
+    "initialize itself by rendering immediately and keep rows area read-only" in withRawGui { (controller, gui) =>
+    val labelTexts = labels(gui).map(_.getText)
+
+    labelTexts.exists(_.contains("Target: 1000")) shouldBe true
+    labelTexts.exists(_.contains("Phase: Select")) shouldBe true
+
+    buttons(gui).count(_.getText.matches("\\d+:\\[d1-6.*")) shouldBe controller.viewState.hand.size
+    textAreas(gui).head.isEditable shouldBe false
     }
 
     "enable only Select phase action buttons" in withGui { (_, gui) =>
@@ -442,7 +447,7 @@ class GuiTest extends AnyWordSpec with Matchers:
         text should include("1. Sixes -> 43\n2. Fives -> 20")
     }
 
-    "clear error message after a successful GUI action" in withGui { (controller, gui) =>
+        "clear error message after a successful GUI action" in withGui { (_, gui) =>
         click(button(gui, "Undo"))
 
         labels(gui).map(_.getText) should contain("Nothing to undo")
@@ -451,7 +456,7 @@ class GuiTest extends AnyWordSpec with Matchers:
 
         val labelTexts = labels(gui).map(_.getText)
 
+        labelTexts should contain("")
         labelTexts should not contain "Nothing to undo"
-        labelTexts should not contain "Stryker was here!"
         }
   }

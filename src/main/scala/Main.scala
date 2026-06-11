@@ -20,11 +20,11 @@ def runApp(
   val controller = createController()
   val tui = createTui(controller)
 
-  controller.start()
-
   if !isHeadless then
     startGui(controller)
   else
     println("GUI not started: no graphical display available.")
+
+  controller.start()
 
   tui.run()

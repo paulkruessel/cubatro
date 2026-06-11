@@ -11,9 +11,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
     title = "Cubatro"
     preferredSize = new Dimension(1000, 700)
 
-    controller.add(this)
-
-    private val statusLabel = new Label("")
+    private val statusLabel = new Label
     private val handPanel = new FlowPanel()
     private val selectedPanel = new FlowPanel()
     private val inPlayPanel = new FlowPanel()
@@ -22,7 +20,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
         editable = false
         rows = 8
     }
-    private val messageLabel = new Label("")
+    private val messageLabel = new Label
 
 
     private val discardButton = new Button("Discard")
@@ -52,6 +50,9 @@ class Gui (controller: IController) extends MainFrame with Observer:
 
         layout(actionPanel) = BorderPanel.Position.South
     }
+
+    controller.add(this)
+    update()
 
     private def actionPanel: FlowPanel = 
 
