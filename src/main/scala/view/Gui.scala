@@ -201,6 +201,8 @@ class Gui (controller: IController) extends MainFrame with Observer:
         setActionButtonEnabled(redoButton, false)
 
 object Gui:
+    val launcher: IController => Unit = start
+
     def start(controller: IController): Unit =
         Swing.onEDT {
             val gui = new Gui(controller)
