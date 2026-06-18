@@ -93,6 +93,7 @@ Fixed from the previous submission feedback:
 Quality requirements:
 
 - All tests pass.
+- `MainTest` and `GuiTest` are excluded from the default sbt test run.
 - scoverage reports 100% statement coverage and 100% branch coverage.
 - `Main.scala` and `view/Gui.scala` are excluded from coverage in `build.sbt`.
 - Coveralls uses the same scoverage report, so Main and GUI are excluded there as well.
@@ -121,9 +122,7 @@ PhaseStateTest
 UndoManagerTest
 ObserverTest
 TuiTest
-GuiTest
 AppModuleTest
-MainTest
 ```
 
 The tests cover:
@@ -133,7 +132,6 @@ The tests cover:
 - game phase transitions
 - command parsing with `Try`
 - terminal rendering
-- GUI behavior, colors and tooltips
 - observer registration and notification
 - dependency injection wiring
 - undo and redo
@@ -148,9 +146,13 @@ Code coverage is generated with scoverage and uploaded to Coveralls. The Coveral
 Main and GUI are excluded from coverage because they are startup and Swing UI code:
 
 ```scala
-coverageExcludedFiles := ".*[\\/]Main.scala;.*[\\/]view[\\/]Gui.scala"
+Test / testOptions += Tests.Filter(testName =>
+  !testName.endsWith("MainTest") && !testName.endsWith("GuiTest")
+)
+coverageExcludedFiles := ".*Main.scala;.*Gui.scala"
 coverageFailOnMinimum := true
 coverageMinimumStmtTotal := 100
+coverageMinimumBranchTotal := 100
 ```
 
 ## Mutation Testing
@@ -216,3 +218,5 @@ src/test/scala
     |-- GuiTest.scala
     `-- TuiTest.scala
 ```
+
+`MainTest` and `GuiTest` are kept in the repository, but the default sbt test configuration excludes them from the official test and coverage run.

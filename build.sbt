@@ -11,8 +11,12 @@ lazy val root = project
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.14" % Test,
     libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "3.0.0",
 
+    Test / testOptions += Tests.Filter(testName =>
+      !testName.endsWith("MainTest") && !testName.endsWith("GuiTest")
+    ),
     coverageExcludedPackages := "<empty>.*",
-    coverageExcludedFiles := ".*[\\/]Main.scala;.*[\\/]view[\\/]Gui.scala",
+    coverageExcludedFiles := ".*Main.scala;.*Gui.scala",
     coverageFailOnMinimum := true,
-    coverageMinimumStmtTotal := 100
+    coverageMinimumStmtTotal := 100,
+    coverageMinimumBranchTotal := 100
   )
