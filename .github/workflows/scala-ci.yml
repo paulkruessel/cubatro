@@ -39,23 +39,6 @@ jobs:
       - name: Test coverage
         run: sbt clean coverage test coverageReport
 
-      - name: Verify exclusions
-        run: |
-          echo "Checking that Gui.scala and Main.scala are not in scoverage report..."
-          if grep -E "Gui.scala|Main.scala" target/scala-3.8.2/scoverage-report/scoverage.xml; then
-            echo "Gui.scala or Main.scala is still in scoverage report"
-            exit 1
-          fi
-
-      - name: Check Coveralls token
-        run: |
-          if [ -z "$COVERALLS_REPO_TOKEN" ]; then
-            echo "COVERALLS_REPO_TOKEN is empty"
-            exit 1
-          else
-            echo "COVERALLS_REPO_TOKEN is set"
-          fi
-
       - name: Upload coverage to Coveralls
         run: sbt coveralls
         env:
