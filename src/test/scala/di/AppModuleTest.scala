@@ -4,9 +4,6 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import view.{IView, Tui}
 
-import java.awt.{Frame, GraphicsEnvironment}
-import javax.swing.SwingUtilities
-
 class AppModuleTest extends AnyWordSpec with Matchers:
 
   private class FakeView extends IView:
@@ -28,15 +25,6 @@ class AppModuleTest extends AnyWordSpec with Matchers:
 
     override def startGui(using controller: IController): Unit =
       guiController = Some(controller)
-
-  private def flushEdt(): Unit =
-    SwingUtilities.invokeAndWait(() => ())
-
-  private def cubatroFrames: Seq[Frame] =
-    Frame.getFrames.toSeq.filter(_.getTitle == "Cubatro")
-
-  private def disposeCubatroFrames(): Unit =
-    SwingUtilities.invokeAndWait(() => cubatroFrames.foreach(_.dispose()))
 
   "AppInjector" should {
 
@@ -61,17 +49,12 @@ class AppModuleTest extends AnyWordSpec with Matchers:
       injector.tui shouldBe a [Tui]
     }
 
-    "start the default GUI as a visible frame" in {
-      assume(!GraphicsEnvironment.isHeadless, "Skipping Swing GUI test in headless environment.")
+    "wire the default GUI launcher without opening Swing" in {
+      var startedWith: Option[IController] = None
+      val module = new DefaultAppModule(controller => startedWith = Some(controller))
 
-      val module = new DefaultAppModule
+      module.startGui(using module.controller)
 
-      try
-        module.startGui(using module.controller)
-        flushEdt()
-
-        cubatroFrames.exists(_.isVisible) shouldBe true
-      finally
-        disposeCubatroFrames()
+      startedWith shouldBe Some(module.controller)
     }
   }

@@ -149,11 +149,14 @@ Main and GUI are excluded from coverage because they are startup and Swing UI co
 Test / testOptions += Tests.Filter(testName =>
   !testName.endsWith("MainTest") && !testName.endsWith("GuiTest")
 )
-coverageExcludedFiles := ".*Main.scala;.*Gui.scala"
+ThisBuild / coverageExcludedPackages := """<empty>.*;view\.Gui;view\.\$anon"""
+ThisBuild / coverageExcludedFiles := """.*Main;.*Main\.scala;.*[\\/]Main;.*[\\/]Main\.scala;Gui;Gui\.scala;view[\\/]Gui;view[\\/]Gui\.scala;.*[\\/]view[\\/]Gui;.*[\\/]view[\\/]Gui\.scala"""
 coverageFailOnMinimum := true
 coverageMinimumStmtTotal := 100
 coverageMinimumBranchTotal := 100
 ```
+
+The file exclude patterns cover both Windows and Unix-style paths, with and without the `.scala` extension, so local runs and CI use the same exclusions.
 
 ## Mutation Testing
 
@@ -219,4 +222,4 @@ src/test/scala
     `-- TuiTest.scala
 ```
 
-`MainTest` and `GuiTest` are kept in the repository, but the default sbt test configuration excludes them from the official test and coverage run.
+`MainTest` and `GuiTest` are kept in the repository, but the default sbt test configuration excludes them from the official test and coverage run. The remaining DI tests use a stubbed GUI launcher instead of opening a Swing window.

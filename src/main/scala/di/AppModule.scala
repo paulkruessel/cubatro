@@ -8,14 +8,16 @@ trait AppModule:
   def tui(using IController): IView
   def startGui(using IController): Unit
 
-class DefaultAppModule extends AppModule:
+class DefaultAppModule(
+    guiLauncher: IController => Unit = controller => Gui.start(controller)
+) extends AppModule:
   override val controller: IController = new GameController()
 
   override def tui(using controller: IController): IView =
     new Tui(controller)
 
   override def startGui(using controller: IController): Unit =
-    Gui.start(controller)
+    guiLauncher(controller)
 
 final class AppInjector(module: AppModule):
   val controller: IController = module.controller
