@@ -1,27 +1,20 @@
-import controller.{GameController, IController}
-import view.{Gui, IView, Tui}
+import di.{AppInjector, DefaultAppModule}
 
 import java.awt.GraphicsEnvironment
-import scala.swing.Swing
 
 @main def main(): Unit =
   runApp()
 
 def runApp(
     isHeadless: Boolean = GraphicsEnvironment.isHeadless(),
-    createController: () => IController = () => new GameController(),
-    createTui: IController => IView = controller => new Tui(controller),
-    startGui: IController => Unit = controller =>
-      Swing.onEDT {
-        val gui = new Gui(controller)
-        gui.visible = true
-      }
+    createInjector: () => AppInjector = () => AppInjector.from(new DefaultAppModule())
 ): Unit =
-  val controller = createController()
-  val tui = createTui(controller)
+  val injector = createInjector()
+  val controller = injector.controller
+  val tui = injector.tui
 
   if !isHeadless then
-    startGui(controller)
+    injector.startGui()
   else
     println("GUI not started: no graphical display available.")
 

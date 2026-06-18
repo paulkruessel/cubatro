@@ -1,15 +1,28 @@
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 
+import controller.{GameController, IController}
+import di.{AppInjector, AppModule}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.awt.Frame
 import javax.swing.SwingUtilities
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.*
-import view.Tui
+import view.{IView, Tui}
 
 class MainTest extends AnyWordSpec with Matchers:
+
+  private def testInjector(startGuiCallback: () => Unit = () => ()): AppInjector =
+    AppInjector.from(new AppModule:
+      override val controller: IController = new GameController()
+
+      override def tui(using controller: IController): IView =
+        new Tui(controller)
+
+      override def startGui(using controller: IController): Unit =
+        startGuiCallback()
+    )
 
   private def disposeAllFrames(): Unit =
     try
@@ -53,8 +66,7 @@ class MainTest extends AnyWordSpec with Matchers:
         Console.withOut(output) {
           runApp(
             isHeadless = true,
-            createTui = controller => new Tui(controller),
-            startGui = _ => guiStarted = true
+            createInjector = () => testInjector(() => guiStarted = true)
           )
         }
       }
@@ -73,8 +85,7 @@ class MainTest extends AnyWordSpec with Matchers:
         Console.withOut(output) {
           runApp(
             isHeadless = false,
-            createTui = controller => new Tui(controller),
-            startGui = _ => guiStarted = true
+            createInjector = () => testInjector(() => guiStarted = true)
           )
         }
       }
