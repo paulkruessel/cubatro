@@ -580,6 +580,48 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       view.isLose shouldBe false
     }
 
+    "include bonus metadata for dice in every view section" in {
+      val controller = new GameController()
+
+      setState(
+        controller,
+        state(
+          availableDice = List(chipDie),
+          selectedDice = List(multDie),
+          diceInPlay = List(RolledDie(chipDie, 5)),
+          diceToRoll = List(RolledDie(multDie, 3))
+        )
+      )
+
+      val view = controller.viewState
+
+      view.hand shouldBe List("0:[d1-6:+2C]")
+      view.selected shouldBe List("0:[d1-6:+2M]")
+      view.inPlay shouldBe List("0:[5:+2C]")
+      view.toRoll shouldBe List("0:[3:+2M]")
+
+      view.handDice.head.bonusType shouldBe BonusType.Chips
+      view.handDice.head.bonusValue shouldBe 2
+      view.handDice.head.guiText shouldBe "[d1-6:+2C]"
+      view.handDice.head.tooltip shouldBe "Bonus: +2 Chips"
+
+      view.selectedDiceViews.head.bonusType shouldBe BonusType.Mult
+      view.selectedDiceViews.head.guiText shouldBe "[d1-6:+2M]"
+      view.selectedDiceViews.head.tooltip shouldBe "Bonus: +2 Mult"
+
+      view.inPlayDice.head.text shouldBe "0:[5:+2C]"
+      view.inPlayDice.head.guiText shouldBe "[5]"
+      view.toRollDice.head.text shouldBe "0:[3:+2M]"
+      view.toRollDice.head.guiText shouldBe "[3]"
+    }
+
+    "describe dice without a bonus explicitly in tooltips" in {
+      val dieView = DieView("0:[1]", BonusType.None, 0)
+
+      dieView.guiText shouldBe "[1]"
+      dieView.tooltip shouldBe "Bonus: none"
+    }
+
     "undo after select restores previous state" in {
       val controller = new GameController()
       controller.start()

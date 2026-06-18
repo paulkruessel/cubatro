@@ -5,7 +5,7 @@ import model.*
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 
-import java.awt.{Component as AwtComponent, Container as AwtContainer, GraphicsEnvironment}
+import java.awt.{Color, Component as AwtComponent, Container as AwtContainer, GraphicsEnvironment}
 import javax.swing.{JButton, JLabel, JTextArea, SwingUtilities}
 import scala.swing.*
 
@@ -13,6 +13,7 @@ class GuiTest extends AnyWordSpec with Matchers:
 
   private val plainDie = Die(1, 6, BonusType.None, 0)
   private val chipDie = Die(1, 6, BonusType.Chips, 2)
+  private val multDie = Die(1, 6, BonusType.Mult, 2)
   private val fixedDie = Die(4, 4, BonusType.None, 0)
 
   private def setState(controller: GameController, state: GameState): Unit =
@@ -138,7 +139,7 @@ class GuiTest extends AnyWordSpec with Matchers:
       statusText should include("Rerolls: 4")
       statusText should include("Discards: 4")
 
-      buttons(gui).count(_.getText.matches("\\d+:\\[d1-6.*")) shouldBe controller.viewState.hand.size
+      buttons(gui).count(_.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
       textAreas(gui).head.getText shouldBe "-"
     }
 
@@ -148,7 +149,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     labelTexts.exists(_.contains("Target: 1000")) shouldBe true
     labelTexts.exists(_.contains("Phase: Select")) shouldBe true
 
-    buttons(gui).count(_.getText.matches("\\d+:\\[d1-6.*")) shouldBe controller.viewState.hand.size
+    buttons(gui).count(_.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
     textAreas(gui).head.isEditable shouldBe false
     }
 
@@ -162,14 +163,14 @@ class GuiTest extends AnyWordSpec with Matchers:
     }
 
     "select a hand die when a hand button is clicked" in withGui { (controller, gui) =>
-      val firstDieButton = firstButtonStartingWith(gui, "0:[d")
+      val firstDieButton = firstButtonStartingWith(gui, "[d")
 
       click(firstDieButton)
 
       controller.state.selectedDice.size shouldBe 1
       controller.state.availableDice.size shouldBe 7
 
-      buttons(gui).exists(_.getText.startsWith("0:[d")) shouldBe true
+      buttons(gui).exists(_.getText.startsWith("[d")) shouldBe true
     }
 
     "play selected dice when Play is clicked" in withGui { (controller, gui) =>
@@ -185,7 +186,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     }
 
     "discard selected dice when Discard is clicked" in withGui { (controller, gui) =>
-      click(firstButtonStartingWith(gui, "0:[d"))
+      click(firstButtonStartingWith(gui, "[d"))
 
       click(button(gui, "Discard"))
 
@@ -244,7 +245,7 @@ class GuiTest extends AnyWordSpec with Matchers:
 
         val inPlayButton =
             buttons(gui)
-            .find(_.getText == "0:[4]")
+            .find(_.getText == "[4]")
             .getOrElse(fail(s"In-play button not found. Existing buttons: ${buttons(gui).map(_.getText).mkString(", ")}"))
 
         click(inPlayButton)
@@ -379,9 +380,78 @@ class GuiTest extends AnyWordSpec with Matchers:
       gui.update()
       flushEdt()
 
-      firstButtonStartingWith(gui, "0:[d1-6:+2C]").isEnabled shouldBe true
-      buttons(gui).find(_.getText == "0:[3]").exists(_.isEnabled) shouldBe false
-      buttons(gui).find(_.getText == "0:[d1-6]").exists(_.isEnabled) shouldBe false
+      firstButtonStartingWith(gui, "[d1-6:+2C]").isEnabled shouldBe true
+      buttons(gui).find(_.getText == "[3]").exists(_.isEnabled) shouldBe false
+      buttons(gui).find(_.getText == "[d1-6]").exists(_.isEnabled) shouldBe false
+    }
+
+    "color action and bonus dice buttons and expose bonus tooltips" in withGui { (controller, gui) =>
+      setState(
+        controller,
+        state(
+          availableDice = List(chipDie, multDie, plainDie),
+          selectedDice = List(chipDie),
+          diceInPlay = List(RolledDie(chipDie, 5), RolledDie(multDie, 6)),
+          diceToRoll = List(RolledDie(multDie, 3))
+        )
+      )
+
+      gui.update()
+      flushEdt()
+
+      button(gui, "Play").getBackground shouldBe new Color(46, 125, 50)
+      button(gui, "Quit").getBackground shouldBe new Color(46, 125, 50)
+
+      val chipsButton = button(gui, "[d1-6:+2C]")
+      chipsButton.getBackground shouldBe new Color(33, 150, 243)
+      chipsButton.getForeground shouldBe Color.WHITE
+      chipsButton.getToolTipText shouldBe "Bonus: +2 Chips"
+
+      val multButton = button(gui, "[d1-6:+2M]")
+      multButton.getBackground shouldBe new Color(229, 57, 53)
+      multButton.getToolTipText shouldBe "Bonus: +2 Mult"
+
+      val plainButton = button(gui, "[d1-6]")
+      plainButton.getBackground shouldBe new Color(238, 238, 238)
+      plainButton.getForeground shouldBe Color.BLACK
+      plainButton.getToolTipText shouldBe "Bonus: none"
+
+      button(gui, "[5]").getToolTipText shouldBe "Bonus: +2 Chips"
+      button(gui, "[6]").getToolTipText shouldBe "Bonus: +2 Mult"
+      button(gui, "[3]").getToolTipText shouldBe "Bonus: +2 Mult"
+      buttons(gui).map(_.getText) should not contain "0:[5:+2C]"
+      buttons(gui).map(_.getText) should not contain "1:[6:+2M]"
+      buttons(gui).map(_.getText) should not contain "0:[3:+2M]"
+    }
+
+    "style disabled buttons with light text and darker backgrounds" in withGui { (controller, gui) =>
+      setState(
+        controller,
+        state(
+          phase = Phase.Select,
+          availableDice = List(chipDie),
+          selectedDice = List(plainDie),
+          diceInPlay = List(RolledDie(chipDie, 5)),
+          diceToRoll = List(RolledDie(multDie, 3))
+        )
+      )
+
+      gui.update()
+      flushEdt()
+
+      button(gui, "Reroll").isEnabled shouldBe false
+      button(gui, "Reroll").getForeground shouldBe new Color(220, 220, 220)
+      button(gui, "Reroll").getBackground shouldBe new Color(24, 78, 29)
+
+      val selectedPlain = button(gui, "[d1-6]")
+      selectedPlain.isEnabled shouldBe false
+      selectedPlain.getForeground shouldBe new Color(220, 220, 220)
+      selectedPlain.getBackground shouldBe new Color(88, 88, 88)
+
+      val toRollMult = button(gui, "[3]")
+      toRollMult.isEnabled shouldBe false
+      toRollMult.getForeground shouldBe new Color(220, 220, 220)
+      toRollMult.getBackground shouldBe new Color(132, 32, 30)
     }
 
     "quit through the Quit button" in withGui { (controller, gui) =>
@@ -393,7 +463,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     }
 
     "undo and redo through the action buttons" in withGui { (controller, gui) =>
-      click(firstButtonStartingWith(gui, "0:[d"))
+      click(firstButtonStartingWith(gui, "[d"))
       controller.state.selectedDice.size shouldBe 1
 
       click(button(gui, "Undo"))
@@ -452,7 +522,7 @@ class GuiTest extends AnyWordSpec with Matchers:
 
         labels(gui).map(_.getText) should contain("Nothing to undo")
 
-        click(firstButtonStartingWith(gui, "0:[d"))
+        click(firstButtonStartingWith(gui, "[d"))
 
         val labelTexts = labels(gui).map(_.getText)
 

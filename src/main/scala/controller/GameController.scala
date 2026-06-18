@@ -30,18 +30,45 @@ case class GameViewState(
     toRoll: List[String],
     lockedRows: List[String],
     isWin: Boolean,
-    isLose: Boolean
+    isLose: Boolean,
+    handDice: List[DieView] = Nil,
+    selectedDiceViews: List[DieView] = Nil,
+    inPlayDice: List[DieView] = Nil,
+    toRollDice: List[DieView] = Nil
 )
 
-class GameController extends Observable with IController:
-  private var currentState: GameState = GameController.defaultInitialState()
-  private val undoManager = new UndoManager()
+case class DieView(
+    text: String,
+    bonusType: BonusType,
+    bonusValue: Int,
+    guiText: String
+):
+  def tooltip: String =
+    bonusType match
+      case BonusType.None  => "Bonus: none"
+      case BonusType.Chips => s"Bonus: +${bonusValue} Chips"
+      case BonusType.Mult  => s"Bonus: +${bonusValue} Mult"
+
+object DieView:
+  def apply(text: String, bonusType: BonusType, bonusValue: Int): DieView =
+    new DieView(text, bonusType, bonusValue, text.dropWhile(_.isDigit).stripPrefix(":"))
+
+class GameController(
+    initialState: GameState = GameController.defaultInitialState(),
+    undoManager: UndoManager = new UndoManager()
+) extends Observable with IController:
+  private var currentState: GameState = initialState
 
   var isRunning: Boolean = false
 
   def state: GameState = currentState
 
   def viewState: GameViewState =
+    val handDice = currentState.availableDice.zipWithIndex.map((die, index) => dieView(index, die))
+    val selectedDice = currentState.selectedDice.zipWithIndex.map((die, index) => dieView(index, die))
+    val inPlayDice = currentState.diceInPlay.zipWithIndex.map((die, index) => rolledDieView(index, die))
+    val toRollDice = currentState.diceToRoll.zipWithIndex.map((die, index) => rolledDieView(index, die))
+
     GameViewState(
       targetScore = currentState.targetScore,
       score = currentState.score,
@@ -49,13 +76,17 @@ class GameController extends Observable with IController:
       plays = currentState.plays,
       rerolls = currentState.rerolls,
       discards = currentState.discards,
-      hand = currentState.availableDice.zipWithIndex.map((d, i) => s"$i:${dieText(d)}"),
-      selected = currentState.selectedDice.zipWithIndex.map((d, i) => s"$i:${dieText(d)}"),
-      inPlay = currentState.diceInPlay.zipWithIndex.map((d, i) => s"$i:[${d.value}]"),
-      toRoll = currentState.diceToRoll.zipWithIndex.map((d, i) => s"$i:[${d.value}]"),
+      hand = handDice.map(_.text),
+      selected = selectedDice.map(_.text),
+      inPlay = inPlayDice.map(_.text),
+      toRoll = toRollDice.map(_.text),
       lockedRows = currentState.lockedRows.zipWithIndex.map((r, i) => s"${i + 1}. ${r.combination} -> ${r.score}"),
       isWin = currentState.phase == Phase.Win,
-      isLose = currentState.phase == Phase.Lose
+      isLose = currentState.phase == Phase.Lose,
+      handDice = handDice,
+      selectedDiceViews = selectedDice,
+      inPlayDice = inPlayDice,
+      toRollDice = toRollDice
     )
 
   def drawDice(oldState: GameState): GameState =
@@ -220,32 +251,32 @@ class GameController extends Observable with IController:
     var continue = true
 
     while continue do
-      s.phase match
-        case Phase.Draw =>
-          s = drawDice(s).copy(phase = Phase.Select)
-
-        case Phase.Roll =>
-          val rolled = rollDice(s)
-          s =
-            if rolled.rerolls <= 0 then rolled.copy(phase = Phase.Score)
-            else rolled.copy(phase = Phase.PickOut)
-
-        case Phase.EndEval =>
-          s =
-            if s.score >= s.targetScore then s.copy(phase = Phase.Win)
-            else if s.plays <= 0 then s.copy(phase = Phase.Lose)
-            else s.copy(phase = Phase.Draw)
-
-        case _ =>
-          continue = false
+      val phaseState = PhaseState.forPhase(s.phase)
+      if phaseState.isAutomatic then
+        s = phaseState.advance(s, drawDice, rollDice)
+      else
+        continue = false
 
     s
+
+  private def dieView(index: Int, die: Die): DieView =
+    val text = dieText(die)
+    DieView(s"$index:$text", die.bonusType, die.bonusValue, text)
+
+  private def rolledDieView(index: Int, die: RolledDie): DieView =
+    DieView(s"$index:${rolledDieText(die)}", die.die.bonusType, die.die.bonusValue, s"[${die.value}]")
 
   private def dieText(die: Die): String =
     die.bonusType match
       case BonusType.None  => s"[d${die.min}-${die.max}]"
       case BonusType.Chips => s"[d${die.min}-${die.max}:+${die.bonusValue}C]"
       case BonusType.Mult  => s"[d${die.min}-${die.max}:+${die.bonusValue}M]"
+
+  private def rolledDieText(die: RolledDie): String =
+    die.die.bonusType match
+      case BonusType.None  => s"[${die.value}]"
+      case BonusType.Chips => s"[${die.value}:+${die.die.bonusValue}C]"
+      case BonusType.Mult  => s"[${die.value}:+${die.die.bonusValue}M]"
 
 object GameController:
   def defaultInitialState(): GameState =

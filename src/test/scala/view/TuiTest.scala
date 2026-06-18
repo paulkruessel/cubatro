@@ -117,6 +117,7 @@ class TuiTest extends AnyWordSpec with Matchers:
 
       tui.parseSafe("select 0 1").get shouldBe GameCommand.Select(List(0, 1))
       tui.parseSafe("invalid").get shouldBe GameCommand.Invalid
+      tui.parseSafe(null).getOrElse(GameCommand.Invalid) shouldBe GameCommand.Invalid
     }
 
     "show prompts for all phases" in {
