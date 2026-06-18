@@ -12,5 +12,5 @@ lazy val root = project
     libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "3.0.0",
 
     coverageExcludedPackages := "<empty>.*",
-    coverageExcludedFiles := ".*[\\/]Main.scala;.*[\\/]view[\\/]Gui.scala"
+    coverageExcludedFiles := ".*[\\\\/]Main;.*[\\\\/]view[\\\\/]Gui"
   )
