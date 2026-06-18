@@ -9,7 +9,7 @@ trait AppModule:
   def startGui(using IController): Unit
 
 class DefaultAppModule(
-    guiLauncher: IController => Unit = controller => Gui.start(controller)
+    guiLauncher: IController => Unit = Gui.launcher
 ) extends AppModule:
   override val controller: IController = new GameController()
 
