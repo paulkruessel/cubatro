@@ -16,6 +16,10 @@ jobs:
   test-and-coverage:
     runs-on: ubuntu-latest
 
+    env:
+      COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+      COVERALLS_FLAG_NAME: Scala
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,10 +47,16 @@ jobs:
             exit 1
           fi
 
+      - name: Check Coveralls token
+        run: |
+          if [ -z "$COVERALLS_REPO_TOKEN" ]; then
+            echo "COVERALLS_REPO_TOKEN is empty"
+            exit 1
+          else
+            echo "COVERALLS_REPO_TOKEN is set"
+          fi
+
       - name: Upload coverage to Coveralls
-        if: env.COVERALLS_REPO_TOKEN != ''
         run: sbt coveralls
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-          COVERALLS_FLAG_NAME: Scala
