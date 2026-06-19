@@ -1,6 +1,8 @@
+import controller.internal_controller.UndoManager
+import controller.internal_controller.GameStateCommand
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
-import controller.*
+import controller.IController
 import model.*
 
 class UndoManagerTest extends AnyWordSpec with Matchers {

@@ -1,4 +1,5 @@
-import controller.*
+import controller.internal_controller.{GameCommand, GameController, GameViewState}
+import controller.IController
 import di.*
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec

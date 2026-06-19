@@ -1,53 +1,13 @@
-package controller
+package controller.internal_controller
 
 import model.*
 import util.Observable
 import scala.util.Random
+import controller.internal_controller.UndoManager
+import controller.internal_controller.PhaseState
+import controller.internal_controller.GameStateCommand
 
-enum GameCommand:
-  case Help
-  case Quit
-  case Select(indices: List[Int])
-  case Discard
-  case PlaySelected
-  case Pick(indices: List[Int])
-  case Reroll
-  case ScoreCurrent
-  case Undo
-  case Redo
-  case Invalid
-
-case class GameViewState(
-    targetScore: Int,
-    score: Int,
-    phase: String,
-    plays: Int,
-    rerolls: Int,
-    discards: Int,
-    hand: List[String],
-    selected: List[String],
-    inPlay: List[String],
-    toRoll: List[String],
-    lockedRows: List[String],
-    isWin: Boolean,
-    isLose: Boolean,
-    handDice: List[DieView] = Nil,
-    selectedDiceViews: List[DieView] = Nil,
-    inPlayDice: List[DieView] = Nil,
-    toRollDice: List[DieView] = Nil
-)
-
-case class DieView(
-    text: String,
-    bonusType: BonusType,
-    bonusValue: Int,
-    guiText: String
-):
-  def tooltip: String =
-    bonusType match
-      case BonusType.None  => "Bonus: none"
-      case BonusType.Chips => s"Bonus: +${bonusValue} Chips"
-      case BonusType.Mult  => s"Bonus: +${bonusValue} Mult"
+import controller.*
 
 object DieView:
   def apply(text: String, bonusType: BonusType, bonusValue: Int): DieView =

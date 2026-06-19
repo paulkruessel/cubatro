@@ -1,6 +1,6 @@
 package view
 
-import controller.*
+import controller.IController
 import model.BonusType
 import util.Observer
 
@@ -9,7 +9,7 @@ import javax.swing.UIManager
 import scala.swing.*
 import scala.swing.event.*
 
-class Gui (controller: IController) extends MainFrame with Observer:
+class Gui (controller: IController) extends MainFrame with IView with Observer:
 
     title = "Cubatro"
     preferredSize = new Dimension(1000, 700)

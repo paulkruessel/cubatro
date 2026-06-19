@@ -1,6 +1,6 @@
 package di
 
-import controller.{GameController, IController}
+import controller.{IController}
 import view.{Gui, IView, Tui}
 
 trait AppModule:

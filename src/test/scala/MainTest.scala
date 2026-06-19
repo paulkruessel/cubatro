@@ -1,7 +1,8 @@
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 
-import controller.{GameController, IController}
+import controller.{IController}
+import controller.internal_controller.GameController
 import di.{AppInjector, AppModule}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.awt.Frame

@@ -1,6 +1,6 @@
 package view
 
-import controller.*
+import controller.IController;
 import util.Observer
 
 trait IView extends Observer:

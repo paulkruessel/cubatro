@@ -1,4 +1,4 @@
-package controller
+package controller.internal_controller
 
 import model.GameState
 

@@ -1,4 +1,5 @@
-package controller
+package controller.internal_controller
+import controller.internal_controller.Command
 
 class UndoManager:
   private var undoStack: List[Command] = Nil
