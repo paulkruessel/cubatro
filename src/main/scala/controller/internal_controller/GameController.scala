@@ -10,8 +10,8 @@ import controller.internal_controller.GameStateCommand
 import controller.*
 
 object DieView:
-  def apply(text: String, bonusType: BonusType, bonusValue: Int): DieView =
-    new DieView(text, bonusType, bonusValue, text.dropWhile(_.isDigit).stripPrefix(":"))
+  def apply(text: String, bonusType: BonusType, bonusValue: Int, gui: String): DieView =
+    new DieView(text, bonusType, bonusValue, gui)
 
 class GameController(
     initialState: GameState = GameController.defaultInitialState(),

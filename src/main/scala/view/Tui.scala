@@ -1,6 +1,6 @@
 package view
 
-import controller.IController
+import controller.*
 import util.Observer
 import scala.io.StdIn
 import scala.util.Try

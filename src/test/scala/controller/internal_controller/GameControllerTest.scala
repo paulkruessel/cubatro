@@ -1,4 +1,5 @@
-import controller.internal_controller.*
+import controller.internal_controller.{DieView as _, *}
+import controller.*
 import model.*
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
@@ -616,7 +617,7 @@ class GameControllerTest extends AnyWordSpec with Matchers:
     }
 
     "describe dice without a bonus explicitly in tooltips" in {
-      val dieView = DieView("0:[1]", BonusType.None, 0)
+      val dieView = DieView("0:[1]", BonusType.None, 0, "[1]")
 
       dieView.guiText shouldBe "[1]"
       dieView.tooltip shouldBe "Bonus: none"

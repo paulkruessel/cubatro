@@ -1,6 +1,6 @@
 package view
 
-import controller.IController
+import controller.*
 import model.BonusType
 import util.Observer
 
@@ -8,11 +8,45 @@ import java.awt.Color
 import javax.swing.UIManager
 import scala.swing.*
 import scala.swing.event.*
+import scala.swing.Reactions.Reaction
 
-class Gui (controller: IController) extends MainFrame with IView with Observer:
+class Gui (controller: IController) extends MainFrame with IView:
 
     title = "Cubatro"
     preferredSize = new Dimension(1000, 700)
+
+    override def run(): Unit =
+        Swing.onEDT {
+            visible = true
+        }
+
+    override def parse(input: String): GameCommand =
+        input.trim.toLowerCase match
+            case "discard" => GameCommand.Discard
+            case "play" => GameCommand.PlaySelected
+            case "reroll" => GameCommand.Reroll
+            case "score" => GameCommand.ScoreCurrent
+            case "undo" => GameCommand.Undo
+            case "redo" => GameCommand.Redo
+            case "quit" => GameCommand.Quit
+            case _ => throw IllegalArgumentException(s"Unknown command: $input")
+
+    override def render(viewState: GameViewState): String =
+        s"""Target: ${viewState.targetScore} | Score: ${viewState.score} | Phase: ${viewState.phase} | Plays: ${viewState.plays} | Rerolls: ${viewState.rerolls} | Discards: ${viewState.discards}"""
+
+    override def prompt(phase: String): String =
+        phase match
+            case "Select" => "Select dice to play or discard:"
+            case "PickOut" => "Pick dice to score or reroll:"
+            case "Score" => "Enter your score:"
+            case _ => "Enter command:"
+
+    override def help(phase: String): String =
+        phase match
+            case "Select" => "Commands: play, discard, undo, redo, quit"
+            case "PickOut" => "Commands: reroll, score, undo, redo, quit"
+            case "Score" => "Commands: undo, redo, quit"
+            case _ => "Commands: undo, redo, quit"
 
     private val statusLabel = new Label
     private val handPanel = new FlowPanel()

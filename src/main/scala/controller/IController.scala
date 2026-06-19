@@ -57,7 +57,7 @@ case class GameViewState(
     toRollDice: List[DieView] = Nil
 )
 
-trait DieView(
+case class DieView(
     text: String,
     bonusType: BonusType,
     bonusValue: Int,
