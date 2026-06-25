@@ -1,6 +1,7 @@
 package controller
 
 import model.*
+import fileio.FileIO
 import util.Observable
 import scala.util.Random
 
@@ -55,13 +56,22 @@ object DieView:
 
 class GameController(
     initialState: GameState = GameController.defaultInitialState(),
-    undoManager: UndoManager = new UndoManager()
+    undoManager: UndoManager = new UndoManager(),
+    fileIO: FileIO = new fileio.JsonFileIO()
 ) extends Observable with IController:
   private var currentState: GameState = initialState
 
   var isRunning: Boolean = false
 
   def state: GameState = currentState
+
+  def save(path: String): Unit =
+    fileIO.save(currentState, path)
+
+  def load(path: String): GameState =
+    currentState = fileIO.load(path)
+    notifyObservers()
+    currentState
 
   def viewState: GameViewState =
     val handDice = currentState.availableDice.zipWithIndex.map((die, index) => dieView(index, die))

@@ -737,4 +737,30 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       rolled.diceToRoll shouldBe Nil
       rolled.diceInPlay.size shouldBe 1
     }
+
+    "save and load game state through FileIO" in {
+      import fileio.JsonFileIO
+      import java.nio.file.Files
+
+      val controller = new GameController(fileIO = new JsonFileIO())
+      val observer = new CountingObserver
+      controller.add(observer)
+
+      controller.start()
+      controller.handle(GameCommand.Select(List(0, 1)))
+
+      val savedState = controller.state
+      val updatesBeforeLoad = observer.updates
+      val file = Files.createTempFile("cubatro-controller", ".json")
+
+      controller.save(file.toString)
+      val loadedState = controller.load(file.toString)
+
+      loadedState shouldBe savedState
+      controller.state shouldBe savedState
+      observer.updates shouldBe updatesBeforeLoad + 1
+
+      Files.deleteIfExists(file)
+    }
+
   }

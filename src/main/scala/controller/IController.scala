@@ -12,6 +12,8 @@ trait IController:
 
   def start(): Unit
   def handle(command: GameCommand): Either[String, GameState]
+  def save(path: String): Unit
+  def load(path: String): GameState
 
   def drawDice(oldState: GameState): GameState
   def selectDice(oldState: GameState, indices: List[Int]): GameState

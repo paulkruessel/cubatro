@@ -1,5 +1,6 @@
 import controller.*
 import di.*
+import fileio.{FileIO, JsonFileIO}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import view.{IView, Tui}
@@ -15,7 +16,11 @@ class AppModuleTest extends AnyWordSpec with Matchers:
     override def help(phase: String): String = ""
 
   private class RecordingModule extends AppModule:
-    override val controller: IController = new GameController()
+    override val fileIO: FileIO = new JsonFileIO()
+
+    override val controller: IController =
+      new GameController(fileIO = fileIO)
+
     var tuiController: Option[IController] = None
     var guiController: Option[IController] = None
 
@@ -47,6 +52,7 @@ class AppModuleTest extends AnyWordSpec with Matchers:
 
       injector.controller shouldBe module.controller
       injector.tui shouldBe a [Tui]
+      injector.fileIO shouldBe a [JsonFileIO]
     }
 
     "wire the default GUI launcher without opening Swing" in {
