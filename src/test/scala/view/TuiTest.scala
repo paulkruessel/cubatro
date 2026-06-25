@@ -4,7 +4,9 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import view.Tui
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.collection.mutable.ListBuffer
+import scala.util.Success
 
 class TuiTest extends AnyWordSpec with Matchers:
 
@@ -115,9 +117,23 @@ class TuiTest extends AnyWordSpec with Matchers:
       val controller = new GameController()
       val tui = new Tui(controller, () => "q", _ => ())
 
-      tui.parseSafe("select 0 1").get shouldBe GameCommand.Select(List(0, 1))
-      tui.parseSafe("invalid").get shouldBe GameCommand.Invalid
-      tui.parseSafe(null).getOrElse(GameCommand.Invalid) shouldBe GameCommand.Invalid
+      tui.parseSafe("select 0 1") shouldBe Success(GameCommand.Select(List(0, 1)))
+      tui.parseSafe("invalid") shouldBe Success(GameCommand.Invalid)
+      tui.parseSafe(null).isFailure shouldBe true
+      tui.parseSafe("").isFailure shouldBe true
+      tui.parseSafe("select").isFailure shouldBe true
+      tui.parseSafe("select nope").isFailure shouldBe true
+    }
+
+    "parse index errors with helpful messages" in {
+      val controller = new GameController()
+      val tui = new Tui(controller, () => "q", _ => ())
+
+      tui.parseSafe("select").failed.get.getMessage shouldBe
+        "No indices entered. Use help to see valid commands."
+
+      tui.parseSafe("select nope").failed.get.getMessage shouldBe
+        "'nope' is not a valid index. Use whole numbers only."
     }
 
     "show prompts for all phases" in {
@@ -247,6 +263,13 @@ class TuiTest extends AnyWordSpec with Matchers:
       output should include("Game stopped by player.")
     }
 
+    "run empty command then quit" in {
+      val output = runTuiWithInputs(List("", "q"))
+
+      output should include("Action error: No command entered. Use help to see valid commands.")
+      output should include("Game stopped by player.")
+    }
+
     "run valid non-terminal command then quit" in {
       val output = runTuiWithInputs(List("select 0", "q"))
 
@@ -259,6 +282,36 @@ class TuiTest extends AnyWordSpec with Matchers:
 
       output should include("Game stopped by player.")
       normalize(output) should endWith("Game stopped by player.\n")
+    }
+
+    "run with the default input reader" in {
+      val input = new ByteArrayInputStream("q\n".getBytes("UTF-8"))
+      val controller = new GameController()
+      val outputs = ListBuffer.empty[String]
+
+      Console.withIn(input) {
+        val tui = new Tui(controller, writeOutput = text => outputs += text)
+        controller.start()
+        outputs.clear()
+
+        tui.run()
+      }
+
+      outputs.mkString should include("Game stopped by player.")
+    }
+
+    "run with the default output writer" in {
+      val output = new ByteArrayOutputStream()
+      val controller = new GameController()
+
+      Console.withOut(output) {
+        val tui = new Tui(controller, readInput = () => "q")
+        controller.start()
+
+        tui.run()
+      }
+
+      output.toString("UTF-8") should include("Game stopped by player.")
     }
 
     "start a stopped controller before processing input" in {

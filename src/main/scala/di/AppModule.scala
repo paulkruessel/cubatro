@@ -1,40 +1,39 @@
 package di
 
+import com.google.inject.{AbstractModule, Guice, Injector, Module, Singleton}
 import controller.{GameController, IController}
 import fileio.{FileIO, JsonFileIO}
 import view.{Gui, IView, Tui}
 
-trait AppModule:
-  def fileIO: FileIO
-  def controller: IController
-  def tui(using IController): IView
-  def startGui(using IController): Unit
+trait GuiLauncher:
+  def start(controller: IController): Unit
+
+final class SwingGuiLauncher(launcher: IController => Unit = Gui.launcher) extends GuiLauncher:
+  override def start(controller: IController): Unit =
+    launcher(controller)
 
 class DefaultAppModule(
-    guiLauncher: IController => Unit = Gui.launcher,
-    fileIOProvider: () => FileIO = () => new JsonFileIO()
-) extends AppModule:
+    fileIOImplementation: Class[? <: FileIO] = classOf[JsonFileIO],
+    guiLauncher: GuiLauncher = new SwingGuiLauncher()
+) extends AbstractModule:
 
-  override val fileIO: FileIO =
-    fileIOProvider()
+  override def configure(): Unit =
+    bind(classOf[FileIO]).to(fileIOImplementation).in(classOf[Singleton])
+    bind(classOf[IController]).to(classOf[GameController]).in(classOf[Singleton])
+    bind(classOf[IView]).to(classOf[Tui]).in(classOf[Singleton])
+    bind(classOf[GuiLauncher]).toInstance(guiLauncher)
 
-  override val controller: IController =
-    new GameController(fileIO = fileIO)
-
-  override def tui(using controller: IController): IView =
-    new Tui(controller)
-
-  override def startGui(using controller: IController): Unit =
-    guiLauncher(controller)
-
-final class AppInjector(module: AppModule):
-  val fileIO: FileIO = module.fileIO
-  val controller: IController = module.controller
-  val tui: IView = module.tui(using controller)
+final class AppInjector private (injector: Injector):
+  val fileIO: FileIO = injector.getInstance(classOf[FileIO])
+  val controller: IController = injector.getInstance(classOf[IController])
+  val tui: IView = injector.getInstance(classOf[IView])
 
   def startGui(): Unit =
-    module.startGui(using controller)
+    injector.getInstance(classOf[GuiLauncher]).start(controller)
 
 object AppInjector:
-  def from(module: AppModule): AppInjector =
-    new AppInjector(module)
+  def create(): AppInjector =
+    from(new DefaultAppModule)
+
+  def from(module: Module): AppInjector =
+    new AppInjector(Guice.createInjector(module))

@@ -1,5 +1,6 @@
 package controller
 
+import com.google.inject.Inject
 import model.*
 import fileio.FileIO
 import util.Observable
@@ -59,6 +60,11 @@ class GameController(
     undoManager: UndoManager = new UndoManager(),
     fileIO: FileIO = new fileio.JsonFileIO()
 ) extends Observable with IController:
+
+  @Inject
+  def this(fileIO: FileIO) =
+    this(GameController.defaultInitialState(), new UndoManager(), fileIO)
+
   private var currentState: GameState = initialState
 
   var isRunning: Boolean = false

@@ -1,8 +1,9 @@
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 
+import com.google.inject.AbstractModule
 import controller.{GameController, IController}
-import di.{AppInjector, AppModule}
+import di.{AppInjector, GuiLauncher}
 import fileio.{FileIO, JsonFileIO}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import view.{IView, Tui}
@@ -10,17 +11,19 @@ import view.{IView, Tui}
 class MainTest extends AnyWordSpec with Matchers:
 
   private def testInjector(startGuiCallback: () => Unit = () => ()): AppInjector =
-    AppInjector.from(new AppModule:
-      override val fileIO: FileIO = new JsonFileIO()
+    val fileIO: FileIO = new JsonFileIO()
+    val controller: IController = new GameController(fileIO = fileIO)
+    val tui: IView = new Tui(controller)
 
-      override val controller: IController =
-        new GameController(fileIO = fileIO)
-
-      override def tui(using controller: IController): IView =
-        new Tui(controller)
-
-      override def startGui(using controller: IController): Unit =
-        startGuiCallback()
+    AppInjector.from(new AbstractModule:
+      override def configure(): Unit =
+        bind(classOf[FileIO]).toInstance(fileIO)
+        bind(classOf[IController]).toInstance(controller)
+        bind(classOf[IView]).toInstance(tui)
+        bind(classOf[GuiLauncher]).toInstance(new GuiLauncher:
+          override def start(controller: IController): Unit =
+            startGuiCallback()
+        )
     )
 
   "Main" should {

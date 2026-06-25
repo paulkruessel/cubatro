@@ -1,15 +1,20 @@
 package view
 
+import com.google.inject.Inject
 import controller.*
 import util.Observer
 import scala.io.StdIn
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class Tui(
     controller: IController,
     readInput: () => String = () => StdIn.readLine(),
     writeOutput: String => Unit = text => print(text)
 ) extends IView:
+
+  @Inject
+  def this(controller: IController) =
+    this(controller, () => StdIn.readLine(), text => print(text))
 
   controller.add(this)
 
@@ -24,15 +29,18 @@ class Tui(
       writeOutput(prompt(controller.viewState.phase))
       val input = readInput()
 
-      parseSafe(input).getOrElse(GameCommand.Invalid) match
-        case GameCommand.Help =>
+      parseSafe(input) match
+        case Failure(error) =>
+          writeOutput(s"Action error: ${error.getMessage}\n")
+
+        case Success(GameCommand.Help) =>
           writeOutput(help(controller.viewState.phase) + "\n")
 
-        case GameCommand.Quit =>
+        case Success(GameCommand.Quit) =>
           controller.handle(GameCommand.Quit)
           writeOutput("Game stopped by player.\n")
 
-        case command =>
+        case Success(command) =>
           controller.handle(command) match
             case Left(error) =>
               writeOutput(s"Action error: $error\n")
@@ -43,7 +51,13 @@ class Tui(
                 controller.isRunning = false
 
   def parseSafe(input: String): Try[GameCommand] =
-    Try(parse(input))
+    Try {
+      val normalized = Option(input).map(_.trim).getOrElse("")
+      if normalized.isEmpty then
+        throw new IllegalArgumentException("No command entered. Use help to see valid commands.")
+
+      parse(normalized)
+    }
 
   def parse(input: String): GameCommand =
     val tokens = input.trim.toLowerCase.replace(",", " ").split("\\s+").toList.filter(_.nonEmpty)
@@ -57,9 +71,20 @@ class Tui(
       case "score" :: Nil | "s" :: Nil      => GameCommand.ScoreCurrent
       case "undo" :: Nil | "u" :: Nil       => GameCommand.Undo
       case "redo" :: Nil                     => GameCommand.Redo
-      case "select" :: tail                 => GameCommand.Select(tail.flatMap(_.toIntOption))
-      case "pick" :: tail                   => GameCommand.Pick(tail.flatMap(_.toIntOption))
+      case "select" :: tail                 => GameCommand.Select(parseIndices(tail))
+      case "pick" :: tail                   => GameCommand.Pick(parseIndices(tail))
       case _                                => GameCommand.Invalid
+
+  private def parseIndices(tokens: List[String]): List[Int] =
+    if tokens.isEmpty then
+      throw new IllegalArgumentException("No indices entered. Use help to see valid commands.")
+
+    tokens.map { token =>
+      Try(token.toInt) match
+        case Success(index) => index
+        case Failure(_) =>
+          throw new IllegalArgumentException(s"'$token' is not a valid index. Use whole numbers only.")
+    }
 
   def render(viewState: GameViewState): String =
     val hand =

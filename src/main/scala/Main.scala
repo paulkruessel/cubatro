@@ -1,4 +1,4 @@
-import di.{AppInjector, DefaultAppModule}
+import di.AppInjector
 
 import java.awt.GraphicsEnvironment
 
@@ -7,7 +7,7 @@ import java.awt.GraphicsEnvironment
 
 def runApp(
     isHeadless: Boolean = GraphicsEnvironment.isHeadless(),
-    createInjector: () => AppInjector = () => AppInjector.from(new DefaultAppModule())
+    createInjector: () => AppInjector = () => AppInjector.create()
 ): Unit =
   val injector = createInjector()
   val controller = injector.controller

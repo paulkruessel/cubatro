@@ -1,21 +1,27 @@
 package di
 
+import controller.IController
 import fileio.*
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 
 class AppModuleFileIOTest extends AnyWordSpec with Matchers:
 
+  private object NoOpGuiLauncher extends GuiLauncher:
+    override def start(controller: IController): Unit = ()
+
   "DefaultAppModule" should {
     "use JsonFileIO by default" in {
-      val module = new DefaultAppModule(guiLauncher = _ => ())
-      module.fileIO shouldBe a [JsonFileIO]
+      val module = new DefaultAppModule(guiLauncher = NoOpGuiLauncher)
+      val injector = AppInjector.from(module)
+
+      injector.fileIO shouldBe a [JsonFileIO]
     }
 
     "allow switching FileIO implementation by dependency injection" in {
       val module = new DefaultAppModule(
-        guiLauncher = _ => (),
-        fileIOProvider = () => new XmlFileIO()
+        fileIOImplementation = classOf[XmlFileIO],
+        guiLauncher = NoOpGuiLauncher
       )
 
       val injector = AppInjector.from(module)

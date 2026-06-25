@@ -13,6 +13,7 @@ lazy val root = project
     libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "2.4.0",
     libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.4.0",
     libraryDependencies += "com.lihaoyi" %% "upickle" % "4.3.2",
+    libraryDependencies += "com.google.inject" % "guice" % "7.0.0",
 
     coverageExcludedPackages := "<empty>.*",
     coverageExcludedFiles := ".*[\\\\/]Main;.*[\\\\/]view[\\\\/]Gui",

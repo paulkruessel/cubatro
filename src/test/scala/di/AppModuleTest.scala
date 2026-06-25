@@ -1,3 +1,4 @@
+import com.google.inject.AbstractModule
 import controller.*
 import di.*
 import fileio.{FileIO, JsonFileIO}
@@ -15,52 +16,74 @@ class AppModuleTest extends AnyWordSpec with Matchers:
     override def prompt(phase: String): String = ""
     override def help(phase: String): String = ""
 
-  private class RecordingModule extends AppModule:
-    override val fileIO: FileIO = new JsonFileIO()
+  private class RecordingGuiLauncher extends GuiLauncher:
+    var controller: Option[IController] = None
 
-    override val controller: IController =
-      new GameController(fileIO = fileIO)
+    override def start(controller: IController): Unit =
+      this.controller = Some(controller)
 
-    var tuiController: Option[IController] = None
-    var guiController: Option[IController] = None
+  private class RecordingModule(guiLauncher: RecordingGuiLauncher) extends AbstractModule:
+    val fileIO: FileIO = new JsonFileIO()
+    val controller: IController = new GameController(fileIO = fileIO)
+    val view: IView = new FakeView
 
-    override def tui(using controller: IController): IView =
-      tuiController = Some(controller)
-      new FakeView
-
-    override def startGui(using controller: IController): Unit =
-      guiController = Some(controller)
+    override def configure(): Unit =
+      bind(classOf[FileIO]).toInstance(fileIO)
+      bind(classOf[IController]).toInstance(controller)
+      bind(classOf[IView]).toInstance(view)
+      bind(classOf[GuiLauncher]).toInstance(guiLauncher)
 
   "AppInjector" should {
 
-    "create components through the configured module" in {
-      val module = new RecordingModule
-      val injector = AppInjector.from(module)
+    "create the default injector through the factory" in {
+      val injector = AppInjector.create()
 
-      injector.controller shouldBe module.controller
-      injector.tui shouldBe a [FakeView]
-      module.tuiController shouldBe Some(module.controller)
-
-      injector.startGui()
-
-      module.guiController shouldBe Some(module.controller)
-    }
-
-    "wire the default controller into the default TUI" in {
-      val module = new DefaultAppModule
-      val injector = AppInjector.from(module)
-
-      injector.controller shouldBe module.controller
+      injector.controller shouldBe a [GameController]
       injector.tui shouldBe a [Tui]
       injector.fileIO shouldBe a [JsonFileIO]
     }
 
-    "wire the default GUI launcher without opening Swing" in {
+    "create components through the configured Guice module" in {
+      val guiLauncher = new RecordingGuiLauncher
+      val module = new RecordingModule(guiLauncher)
+      val injector = AppInjector.from(module)
+
+      injector.fileIO shouldBe module.fileIO
+      injector.controller shouldBe module.controller
+      injector.tui shouldBe module.view
+
+      injector.startGui()
+
+      guiLauncher.controller shouldBe Some(module.controller)
+    }
+
+    "wire the default bindings through Guice" in {
+      val module = new DefaultAppModule
+      val injector = AppInjector.from(module)
+
+      injector.controller shouldBe a [GameController]
+      injector.tui shouldBe a [Tui]
+      injector.fileIO shouldBe a [JsonFileIO]
+    }
+
+    "wire the configured GUI launcher without opening Swing" in {
+      val guiLauncher = new RecordingGuiLauncher
+      val injector = AppInjector.from(new DefaultAppModule(guiLauncher = guiLauncher))
+
+      injector.startGui()
+
+      guiLauncher.controller shouldBe Some(injector.controller)
+    }
+  }
+
+  "SwingGuiLauncher" should {
+
+    "delegate starting the GUI to its configured launcher" in {
+      val controller = new GameController()
       var startedWith: Option[IController] = None
-      val module = new DefaultAppModule(controller => startedWith = Some(controller))
 
-      module.startGui(using module.controller)
+      new SwingGuiLauncher(startedController => startedWith = Some(startedController)).start(controller)
 
-      startedWith shouldBe Some(module.controller)
+      startedWith shouldBe Some(controller)
     }
   }
