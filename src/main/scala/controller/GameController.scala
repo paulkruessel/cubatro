@@ -38,7 +38,11 @@ case class GameViewState(
     handDice: List[DieView] = Nil,
     selectedDiceViews: List[DieView] = Nil,
     inPlayDice: List[DieView] = Nil,
-    toRollDice: List[DieView] = Nil
+    toRollDice: List[DieView] = Nil,
+    currentCombination: String = "-",
+    currentBaseChips: Int = 0,
+    currentBaseMult: Int = 0,
+    currentCombinationText: String = "-"
 )
 
 case class DieView(
@@ -89,6 +93,8 @@ class GameController(
     val selectedDice = currentState.selectedDice.zipWithIndex.map((die, index) => dieView(index, die))
     val inPlayDice = currentState.diceInPlay.zipWithIndex.map((die, index) => rolledDieView(index, die))
     val toRollDice = currentState.diceToRoll.zipWithIndex.map((die, index) => rolledDieView(index, die))
+    val (currentCombination, currentBaseChips, currentBaseMult, currentCombinationText) =
+      currentCombinationInfo(currentState.diceInPlay)
 
     GameViewState(
       targetScore = currentState.targetScore,
@@ -107,7 +113,11 @@ class GameController(
       handDice = handDice,
       selectedDiceViews = selectedDice,
       inPlayDice = inPlayDice,
-      toRollDice = toRollDice
+      toRollDice = toRollDice,
+      currentCombination = currentCombination,
+      currentBaseChips = currentBaseChips,
+      currentBaseMult = currentBaseMult,
+      currentCombinationText = currentCombinationText
     )
 
   def drawDice(oldState: GameState): GameState =
@@ -308,6 +318,15 @@ class GameController(
       case BonusType.None  => s"[${die.value}]"
       case BonusType.Chips => s"[${die.value}:+${die.die.bonusValue}C]"
       case BonusType.Mult  => s"[${die.value}:+${die.die.bonusValue}M]"
+
+  private def currentCombinationInfo(dice: List[RolledDie]): (String, Int, Int, String) =
+    matchingCombinations(dice).lastOption match
+      case Some(combination) =>
+        val baseChips = dice.map(_.value).sum + combination.chips
+        val baseMult = combination.mult
+        (combination.toString, baseChips, baseMult, s"${combination}\nBaseScore x BaseMult\n$baseChips x $baseMult")
+      case None =>
+        ("-", 0, 0, "-")
 
 object GameController:
   def defaultInitialState(): GameState =

@@ -576,8 +576,47 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       view.inPlay should contain("0:[5]")
       view.toRoll should contain("0:[3]")
       view.lockedRows.head should include("Sixes")
+      view.currentCombination shouldBe "Fives"
+      view.currentBaseChips shouldBe 30
+      view.currentBaseMult shouldBe 1
+      view.currentCombinationText shouldBe "Fives\nBaseScore x BaseMult\n30 x 1"
       view.isWin shouldBe false
       view.isLose shouldBe false
+    }
+
+    "show current combination base chips and base mult without die bonuses" in {
+      val controller = new GameController()
+
+      setState(
+        controller,
+        state(
+          diceInPlay = List(
+            RolledDie(chipDie, 5),
+            RolledDie(multDie, 5),
+            RolledDie(plainDie, 5)
+          )
+        )
+      )
+
+      val view = controller.viewState
+
+      view.currentCombination shouldBe "ThreeOfAKind"
+      view.currentBaseChips shouldBe 45
+      view.currentBaseMult shouldBe 2
+      view.currentCombinationText shouldBe "ThreeOfAKind\nBaseScore x BaseMult\n45 x 2"
+    }
+
+    "show no current combination when no dice are in play" in {
+      val controller = new GameController()
+
+      setState(controller, state(diceInPlay = Nil))
+
+      val view = controller.viewState
+
+      view.currentCombination shouldBe "-"
+      view.currentBaseChips shouldBe 0
+      view.currentBaseMult shouldBe 0
+      view.currentCombinationText shouldBe "-"
     }
 
     "include bonus metadata for dice in every view section" in {

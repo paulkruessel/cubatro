@@ -320,9 +320,33 @@ class GuiTest extends AnyWordSpec with Matchers:
       gui.update()
       flushEdt()
 
-      val text = textAreas(gui).head.getText
+      val text = textAreas(gui).map(_.getText).mkString("\n")
       text should include("Sixes")
       text should include("43")
+    }
+
+    "show current combination with base score and base mult labels" in withGui { (controller, gui) =>
+      setState(
+        controller,
+        state(
+          phase = Phase.PickOut,
+          diceInPlay = List(
+            RolledDie(chipDie, 5),
+            RolledDie(multDie, 5),
+            RolledDie(plainDie, 5)
+          )
+        )
+      )
+
+      gui.update()
+      flushEdt()
+
+      val labelTexts = labels(gui).map(_.getText)
+
+      labelTexts should contain("ThreeOfAKind")
+      labelTexts should contain("BaseScore x BaseMult")
+      labelTexts should contain("45")
+      labelTexts should contain("2")
     }
 
     "show win message and disable game buttons" in withGui { (controller, gui) =>
@@ -490,7 +514,9 @@ class GuiTest extends AnyWordSpec with Matchers:
         labelTexts should contain("Selected")
         labelTexts should contain("In Play")
         labelTexts should contain("To Roll")
-        labelTexts should contain("Locked Rows")
+        labelTexts should contain("Current Combination")
+        labelTexts should contain("BaseScore x BaseMult")
+        labelTexts should contain("Scored Rows")
     }
 
     "render multiple locked rows on separate lines" in withGui { (controller, gui) =>
@@ -516,7 +542,7 @@ class GuiTest extends AnyWordSpec with Matchers:
         gui.update()
         flushEdt()
 
-        val text = textAreas(gui).head.getText.replace("\r\n", "\n")
+        val text = textAreas(gui).map(_.getText).mkString("\n").replace("\r\n", "\n")
 
         text should include("1. Sixes -> 43\n2. Fives -> 20")
     }

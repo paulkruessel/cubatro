@@ -5,7 +5,7 @@ import model.BonusType
 import util.Observer
 
 import java.awt.Color
-import javax.swing.UIManager
+import javax.swing.{BorderFactory, SwingConstants, UIManager}
 import scala.swing.*
 import scala.swing.event.*
 
@@ -19,6 +19,9 @@ class Gui (controller: IController) extends MainFrame with Observer:
     private val selectedPanel = new FlowPanel()
     private val inPlayPanel = new FlowPanel()
     private val toRollPanel = new FlowPanel()
+    private val currentCombinationValueLabel = new Label("-")
+    private val baseScoreValueLabel = new Label("0")
+    private val baseMultValueLabel = new Label("0")
     private val lockedRowsArea = new TextArea {
         editable = false
         rows = 8
@@ -36,6 +39,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
     private val enabledLightForeground = Color.WHITE
     private val enabledDarkForeground = Color.BLACK
     private val disabledForeground = new Color(220, 220, 220)
+    private val panelBorderColor = new Color(120, 120, 120)
 
     UIManager.put("Button.disabledText", disabledForeground)
 
@@ -64,8 +68,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
             contents += inPlayPanel
             contents += new Label("To Roll")
             contents += toRollPanel
-            contents += new Label("Locked Rows")
-            contents += new ScrollPane(lockedRowsArea)
+            contents += scoreInfoPanel
             contents += messageLabel
         }) = BorderPanel.Position.Center
 
@@ -103,6 +106,38 @@ class Gui (controller: IController) extends MainFrame with Observer:
             quitButton
         )
 
+    private def scoreInfoPanel: GridPanel =
+        new GridPanel(1, 2) {
+            contents += new BoxPanel(Orientation.Vertical) {
+                contents += new Label("Current Combination")
+                contents += currentCombinationPanel
+            }
+            contents += new BoxPanel(Orientation.Vertical) {
+                contents += new Label("Scored Rows")
+                contents += new ScrollPane(lockedRowsArea)
+            }
+        }
+
+    private def currentCombinationPanel: BoxPanel =
+        new BoxPanel(Orientation.Vertical) {
+            peer.setBorder(BorderFactory.createLineBorder(panelBorderColor))
+            contents += currentCombinationValueLabel
+            contents += new Label("BaseScore x BaseMult")
+            contents += new FlowPanel(
+                valuePanel(baseScoreValueLabel),
+                new Label("x"),
+                valuePanel(baseMultValueLabel)
+            )
+        }
+
+    private def valuePanel(label: Label): BorderPanel =
+        label.peer.setHorizontalAlignment(SwingConstants.CENTER)
+        new BorderPanel {
+            preferredSize = new Dimension(80, 45)
+            peer.setBorder(BorderFactory.createLineBorder(panelBorderColor))
+            layout(label) = BorderPanel.Position.Center
+        }
+
     private def handle(command: GameCommand): Unit =
         controller.handle(command) match
             case Left(error) => messageLabel.text = error
@@ -129,6 +164,10 @@ class Gui (controller: IController) extends MainFrame with Observer:
             updateDicePanel(selectedPanel, state.selectedDiceViews, _ => None)
             updateDicePanel(inPlayPanel, state.inPlayDice, index => Some(GameCommand.Pick(List(index))))
             updateDicePanel(toRollPanel, state.toRollDice, _ => None)
+
+            currentCombinationValueLabel.text = state.currentCombination
+            baseScoreValueLabel.text = state.currentBaseChips.toString
+            baseMultValueLabel.text = state.currentBaseMult.toString
 
             lockedRowsArea.text =
                 if state.lockedRows.isEmpty then "-"
