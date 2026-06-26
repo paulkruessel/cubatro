@@ -5,6 +5,8 @@ import scala.xml.*
 
 class XmlFileIO extends FileIO:
 
+  override val defaultSavePath: String = "cubatro-save.xml"
+
   override def save(gameState: GameState, path: String): Unit =
     XML.save(path, toXml(gameState), "UTF-8", xmlDecl = true)
 

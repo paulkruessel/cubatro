@@ -4,7 +4,7 @@ import com.google.inject.Inject
 import model.*
 import fileio.FileIO
 import util.Observable
-import scala.util.Random
+import scala.util.{Failure, Random, Success, Try}
 
 enum GameCommand:
   case Help
@@ -17,6 +17,8 @@ enum GameCommand:
   case ScoreCurrent
   case Undo
   case Redo
+  case Save(path: String)
+  case Load(path: String)
   case Invalid
 
 case class GameViewState(
@@ -70,6 +72,9 @@ class GameController(
   var isRunning: Boolean = false
 
   def state: GameState = currentState
+
+  def defaultSavePath: String =
+    fileIO.defaultSavePath
 
   def save(path: String): Unit =
     fileIO.save(currentState, path)
@@ -187,6 +192,16 @@ class GameController(
         isRunning = false
         notifyObservers()
         Left("Game ended by player.")
+      case GameCommand.Save(path) =>
+        Try(save(path)) match
+          case Success(_)     => Right(currentState)
+          case Failure(error) => Left(s"Could not save game: ${error.getMessage}")
+
+      case GameCommand.Load(path) =>
+        Try(load(path)) match
+          case Success(loadedState) => Right(loadedState)
+          case Failure(error)       => Left(s"Could not load game: ${error.getMessage}")
+
       case GameCommand.Undo =>
         undoManager.undoStep() match
           case Some(_) =>
@@ -217,7 +232,7 @@ class GameController(
                   Right(addDiceToPlay(currentState).copy(phase = Phase.Roll))
                 case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
                 case _ =>
-                  Left("Allowed: select, discard, play, help, quit, undo, redo")
+                  Left("Allowed: select, discard, play, save, load, help, quit, undo, redo")
 
             case Phase.PickOut =>
               command match
@@ -230,7 +245,7 @@ class GameController(
                   Right(scored.copy(plays = math.max(0, scored.plays - 1), phase = Phase.EndEval))
                 case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
                 case _ =>
-                  Left("Allowed: pick, reroll, score, help, quit, undo, redo")
+                  Left("Allowed: pick, reroll, score, save, load, help, quit, undo, redo")
 
             case Phase.Score =>
               command match
@@ -239,7 +254,7 @@ class GameController(
                   Right(scored.copy(plays = math.max(0, scored.plays - 1), phase = Phase.EndEval))
                 case GameCommand.Invalid => Left("Unknown command. Use help to see valid commands.")
                 case _ =>
-                  Left("Allowed: score, help, quit, undo, redo")
+                  Left("Allowed: score, save, load, help, quit, undo, redo")
 
             case _ =>
               Left(s"No command allowed in phase ${currentState.phase}")
@@ -313,7 +328,7 @@ object GameController:
       rerolls = 4,
       totalRerolls = 4,
       plays = 6,
-      targetScore = 1000,
+      targetScore = 5000,
       score = 0,
       phase = Phase.Draw
     )

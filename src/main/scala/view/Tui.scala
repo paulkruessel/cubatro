@@ -45,6 +45,7 @@ class Tui(
             case Left(error) =>
               writeOutput(s"Action error: $error\n")
             case Right(_) =>
+              successMessage(command).foreach(message => writeOutput(message + "\n"))
               val viewState = controller.viewState
               if viewState.isWin || viewState.isLose then
                 writeOutput(if viewState.isWin then "You win.\n" else "You lose.\n")
@@ -60,20 +61,24 @@ class Tui(
     }
 
   def parse(input: String): GameCommand =
-    val tokens = input.trim.toLowerCase.replace(",", " ").split("\\s+").toList.filter(_.nonEmpty)
+    val trimmed = input.trim
+    val command = trimmed.takeWhile(!_.isWhitespace).toLowerCase
+    val arguments = trimmed.drop(command.length).trim
 
-    tokens match
-      case "help" :: Nil | "h" :: Nil       => GameCommand.Help
-      case "quit" :: Nil | "q" :: Nil       => GameCommand.Quit
-      case "discard" :: Nil | "d" :: Nil    => GameCommand.Discard
-      case "play" :: Nil | "p" :: Nil       => GameCommand.PlaySelected
-      case "reroll" :: Nil | "r" :: Nil     => GameCommand.Reroll
-      case "score" :: Nil | "s" :: Nil      => GameCommand.ScoreCurrent
-      case "undo" :: Nil | "u" :: Nil       => GameCommand.Undo
-      case "redo" :: Nil                     => GameCommand.Redo
-      case "select" :: tail                 => GameCommand.Select(parseIndices(tail))
-      case "pick" :: tail                   => GameCommand.Pick(parseIndices(tail))
-      case _                                => GameCommand.Invalid
+    command match
+      case "help" | "h" if arguments.isEmpty    => GameCommand.Help
+      case "quit" | "q" if arguments.isEmpty    => GameCommand.Quit
+      case "discard" | "d" if arguments.isEmpty => GameCommand.Discard
+      case "play" | "p" if arguments.isEmpty    => GameCommand.PlaySelected
+      case "reroll" | "r" if arguments.isEmpty  => GameCommand.Reroll
+      case "score" | "s" if arguments.isEmpty   => GameCommand.ScoreCurrent
+      case "undo" | "u" if arguments.isEmpty    => GameCommand.Undo
+      case "redo" if arguments.isEmpty          => GameCommand.Redo
+      case "save"                               => GameCommand.Save(pathOrDefault(arguments))
+      case "load" | "l"                         => GameCommand.Load(pathOrDefault(arguments))
+      case "select"                             => GameCommand.Select(parseIndices(indexTokens(arguments)))
+      case "pick"                               => GameCommand.Pick(parseIndices(indexTokens(arguments)))
+      case _                                    => GameCommand.Invalid
 
   private def parseIndices(tokens: List[String]): List[Int] =
     if tokens.isEmpty then
@@ -85,6 +90,18 @@ class Tui(
         case Failure(_) =>
           throw new IllegalArgumentException(s"'$token' is not a valid index. Use whole numbers only.")
     }
+
+  private def indexTokens(arguments: String): List[String] =
+    arguments.replace(",", " ").split("\\s+").toList.filter(_.nonEmpty)
+
+  private def pathOrDefault(arguments: String): String =
+    if arguments.isEmpty then controller.defaultSavePath else arguments
+
+  private def successMessage(command: GameCommand): Option[String] =
+    command match
+      case GameCommand.Save(path) => Some(s"Game saved to $path.")
+      case GameCommand.Load(path) => Some(s"Game loaded from $path.")
+      case _                      => None
 
   def render(viewState: GameViewState): String =
     val hand =
@@ -133,14 +150,14 @@ $rows
 
   def prompt(phase: String): String =
     phase match
-      case "Select"  => "\nSelect phase: select <indices> | discard | play | undo | redo | help | quit\n> "
-      case "PickOut" => "\nPickOut phase: pick <indices> | reroll | score | undo | redo | help | quit\n> "
-      case "Score"   => "\nScore phase: score | undo | redo | help | quit\n> "
-      case _         => s"\nPhase $phase\n> "
+      case "Select"  => "\nSelect phase: select <indices> | discard | play | save [path] | load [path] | undo | redo | help | quit\n> "
+      case "PickOut" => "\nPickOut phase: pick <indices> | reroll | score | save [path] | load [path] | undo | redo | help | quit\n> "
+      case "Score"   => "\nScore phase: score | save [path] | load [path] | undo | redo | help | quit\n> "
+      case _         => s"\nPhase $phase: save [path] | load [path] | undo | redo | help | quit\n> "
 
   def help(phase: String): String =
     phase match
-      case "Select"  => "Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo."
-      case "PickOut" => "Use: pick 0, then reroll. Or use: score. Undo with: undo. Redo with: redo."
-      case "Score"   => "Use: score. Undo with: undo. Redo with: redo."
-      case _         => "Commands: undo, redo, help, quit."
+      case "Select"  => "Select dice with: select 0 1 2. Then use: play. Save with: save [path]. Load with: load [path]. Undo with: undo. Redo with: redo."
+      case "PickOut" => "Use: pick 0, then reroll. Or use: score. Save with: save [path]. Load with: load [path]. Undo with: undo. Redo with: redo."
+      case "Score"   => "Use: score. Save with: save [path]. Load with: load [path]. Undo with: undo. Redo with: redo."
+      case _         => "Commands: save [path], load [path], undo, redo, help, quit."

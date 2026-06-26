@@ -32,8 +32,8 @@ final class AppInjector private (injector: Injector):
     injector.getInstance(classOf[GuiLauncher]).start(controller)
 
 object AppInjector:
-  def create(): AppInjector =
-    from(new DefaultAppModule)
+  def create(fileIOImplementation: Class[? <: FileIO] = classOf[JsonFileIO]): AppInjector =
+    from(new DefaultAppModule(fileIOImplementation = fileIOImplementation))
 
   def from(module: Module): AppInjector =
     new AppInjector(Guice.createInjector(module))

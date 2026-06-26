@@ -6,6 +6,7 @@ import util.Observer
 trait IController:
   def state: GameState
   def viewState: GameViewState
+  def defaultSavePath: String
 
   def isRunning: Boolean
   def isRunning_=(value: Boolean): Unit

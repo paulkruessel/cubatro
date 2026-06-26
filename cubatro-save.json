@@ -1,0 +1,17 @@
+{
+  "bag": [{"min":1,"max":6,"bonusType":"None","bonusValue":0},{"min":1,"max":6,"bonusType":"None","bonusValue":0},{"min":1,"max":6,"bonusType":"Chips","bonusValue":2}],
+  "availableDice": [{"min":1,"max":6,"bonusType":"Chips","bonusValue":2},{"min":1,"max":6,"bonusType":"Chips","bonusValue":2},{"min":1,"max":6,"bonusType":"Chips","bonusValue":2},{"min":1,"max":6,"bonusType":"None","bonusValue":0},{"min":1,"max":6,"bonusType":"Mult","bonusValue":2},{"min":1,"max":6,"bonusType":"None","bonusValue":0},{"min":1,"max":6,"bonusType":"None","bonusValue":0},{"min":1,"max":6,"bonusType":"None","bonusValue":0}],
+  "maxAvailableDice": 8,
+  "selectedDice": [],
+  "diceInPlay": [{"die":{"min":1,"max":6,"bonusType":"Mult","bonusValue":2},"value":1},{"die":{"min":1,"max":6,"bonusType":"Chips","bonusValue":2},"value":2},{"die":{"min":1,"max":6,"bonusType":"Mult","bonusValue":2},"value":4},{"die":{"min":1,"max":6,"bonusType":"Mult","bonusValue":2},"value":5},{"die":{"min":1,"max":6,"bonusType":"Chips","bonusValue":2},"value":5}],
+  "diceToRoll": [],
+  "lockedRows": [],
+  "cupgrades": [],
+  "discards": 2,
+  "rerolls": 4,
+  "totalRerolls": 4,
+  "plays": 6,
+  "targetScore": 5000,
+  "score": 0,
+  "phase": "PickOut"
+}
