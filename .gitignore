@@ -34,3 +34,7 @@ metals.sbt
 # Sonar
 .sonarqube-token
 SonarReport.png
+
+# Save Files
+cubatro-save.json
+cubatro-save.xml
