@@ -15,6 +15,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
     preferredSize = new Dimension(1000, 700)
 
     private val statusLabel = new Label
+    private val bagPanel = new FlowPanel()
     private val handPanel = new FlowPanel()
     private val selectedPanel = new FlowPanel()
     private val inPlayPanel = new FlowPanel()
@@ -39,6 +40,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
     private val enabledLightForeground = Color.WHITE
     private val enabledDarkForeground = Color.BLACK
     private val disabledForeground = new Color(220, 220, 220)
+    private val descriptionForeground = new Color(80, 80, 80)
     private val panelBorderColor = new Color(120, 120, 120)
 
     UIManager.put("Button.disabledText", disabledForeground)
@@ -61,6 +63,8 @@ class Gui (controller: IController) extends MainFrame with Observer:
         layout(statusLabel) = BorderPanel.Position.North
 
         layout(new BoxPanel(Orientation.Vertical) {
+            contents += sectionHeader("Bag", "Dice still available to draw after discards.")
+            contents += bagPanel
             contents += sectionHeader("Hand", "Dice you can select this turn.")
             contents += handPanel
             contents += sectionHeader("Selected", "Dice chosen to play or discard.")
@@ -108,10 +112,19 @@ class Gui (controller: IController) extends MainFrame with Observer:
         )
 
     private def sectionHeader(title: String, description: String): BoxPanel =
+        val descriptionLabel = new Label(description)
+        descriptionLabel.foreground = descriptionForeground
+
         new BoxPanel(Orientation.Vertical) {
-            contents += new Label(title)
-            contents += new Label(description)
+            contents += centeredLabel(new Label(title))
+            contents += centeredLabel(descriptionLabel)
         }
+
+    private def centeredLabel(label: Label): FlowPanel =
+        label.peer.setHorizontalAlignment(SwingConstants.CENTER)
+        val panel = new FlowPanel(label)
+        panel.peer.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT)
+        panel
 
     private def scoreInfoPanel: GridPanel =
         new GridPanel(1, 2) {
@@ -187,6 +200,12 @@ class Gui (controller: IController) extends MainFrame with Observer:
             statusLabel.text =
                 s"Target: ${state.targetScore} | Score: ${state.score} | Phase: ${state.phase} | Plays: ${state.plays} | Rerolls: ${state.rerolls} | Discards: ${state.discards}"
 
+            updateDicePanel(
+                bagPanel,
+                state.bagDice,
+                _ => None,
+                die => s"This die is still in the bag and may be drawn later. ${die.tooltip}."
+            )
             updateDicePanel(
                 handPanel,
                 state.handDice,

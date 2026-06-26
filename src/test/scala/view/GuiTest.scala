@@ -6,7 +6,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 
 import java.awt.{Color, Component as AwtComponent, Container as AwtContainer, GraphicsEnvironment}
-import javax.swing.{JButton, JLabel, JTextArea, SwingUtilities}
+import javax.swing.{JButton, JLabel, JTextArea, SwingConstants, SwingUtilities}
 import scala.swing.*
 
 class GuiTest extends AnyWordSpec with Matchers:
@@ -86,6 +86,11 @@ class GuiTest extends AnyWordSpec with Matchers:
       fail(s"Button starting with '$prefix' not found. Existing buttons: ${buttons(gui).map(_.getText).mkString(", ")}")
     )
 
+  private def firstEnabledButtonStartingWith(gui: Gui, prefix: String): JButton =
+    buttons(gui).find(button => button.isEnabled && button.getText.startsWith(prefix)).getOrElse(
+      fail(s"Enabled button starting with '$prefix' not found. Existing buttons: ${buttons(gui).map(_.getText).mkString(", ")}")
+    )
+
   private def click(button: JButton): Unit =
     SwingUtilities.invokeAndWait(() => button.doClick())
     flushEdt()
@@ -130,27 +135,38 @@ class GuiTest extends AnyWordSpec with Matchers:
   "Gui" should {
 
     "render the initial view state" in withGui { (controller, gui) =>
-      val statusText = labels(gui).map(_.getText).find(_.contains("Target: 5000")).getOrElse("")
+      val statusText = labels(gui).map(_.getText).find(_.contains("Target: 1000")).getOrElse("")
 
-      statusText should include("Target: 5000")
+      statusText should include("Target: 1000")
       statusText should include("Score: 0")
       statusText should include("Phase: Select")
       statusText should include("Plays: 6")
       statusText should include("Rerolls: 4")
       statusText should include("Discards: 4")
 
-      buttons(gui).count(_.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
+      buttons(gui).count(button => button.isEnabled && button.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
       textAreas(gui).head.getText shouldBe "-"
     }
 
     "initialize itself by rendering immediately and keep rows area read-only" in withRawGui { (controller, gui) =>
     val labelTexts = labels(gui).map(_.getText)
 
-    labelTexts.exists(_.contains("Target: 5000")) shouldBe true
+    labelTexts.exists(_.contains("Target: 1000")) shouldBe true
     labelTexts.exists(_.contains("Phase: Select")) shouldBe true
 
-    buttons(gui).count(_.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
+    buttons(gui).count(button => button.isEnabled && button.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
     textAreas(gui).head.isEditable shouldBe false
+    }
+
+    "render bag dice as disabled buttons above the hand" in withGui { (controller, gui) =>
+      labels(gui).map(_.getText) should contain("Bag")
+      labels(gui).map(_.getText) should contain("Dice still available to draw after discards.")
+
+      val bagButtons = buttons(gui).filter(button => !button.isEnabled && button.getText.matches("\\[d1-6.*"))
+
+      bagButtons.size shouldBe controller.viewState.bag.size
+      bagButtons.head.getToolTipText should include("still in the bag")
+      bagButtons.head.getToolTipText should include("may be drawn later")
     }
 
     "enable only Select phase action buttons" in withGui { (_, gui) =>
@@ -177,7 +193,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     }
 
     "select a hand die when a hand button is clicked" in withGui { (controller, gui) =>
-      val firstDieButton = firstButtonStartingWith(gui, "[d")
+      val firstDieButton = firstEnabledButtonStartingWith(gui, "[d")
 
       click(firstDieButton)
 
@@ -200,7 +216,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     }
 
     "discard selected dice when Discard is clicked" in withGui { (controller, gui) =>
-      click(firstButtonStartingWith(gui, "[d"))
+      click(firstEnabledButtonStartingWith(gui, "[d"))
 
       click(button(gui, "Discard"))
 
@@ -409,6 +425,7 @@ class GuiTest extends AnyWordSpec with Matchers:
         controller,
         state(
           phase = Phase.Select,
+          bag = Nil,
           availableDice = List(chipDie),
           selectedDice = List(plainDie),
           diceToRoll = List(RolledDie(plainDie, 3))
@@ -427,6 +444,7 @@ class GuiTest extends AnyWordSpec with Matchers:
       setState(
         controller,
         state(
+          bag = Nil,
           availableDice = List(chipDie, multDie, plainDie),
           selectedDice = List(chipDie),
           diceInPlay = List(RolledDie(chipDie, 5), RolledDie(multDie, 6)),
@@ -475,6 +493,7 @@ class GuiTest extends AnyWordSpec with Matchers:
         controller,
         state(
           phase = Phase.Select,
+          bag = Nil,
           availableDice = List(chipDie),
           selectedDice = List(plainDie),
           diceInPlay = List(RolledDie(chipDie, 5)),
@@ -509,7 +528,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     }
 
     "undo and redo through the action buttons" in withGui { (controller, gui) =>
-      click(firstButtonStartingWith(gui, "[d"))
+      click(firstEnabledButtonStartingWith(gui, "[d"))
       controller.state.selectedDice.size shouldBe 1
 
       click(button(gui, "Undo"))
@@ -528,6 +547,8 @@ class GuiTest extends AnyWordSpec with Matchers:
 
         val labelTexts = labels(gui).map(_.getText)
 
+        labelTexts should contain("Bag")
+        labelTexts should contain("Dice still available to draw after discards.")
         labelTexts should contain("Hand")
         labelTexts should contain("Dice you can select this turn.")
         labelTexts should contain("Selected")
@@ -541,6 +562,21 @@ class GuiTest extends AnyWordSpec with Matchers:
         labelTexts should contain("BaseScore x BaseMult")
         labelTexts should contain("Scored Rows")
         labelTexts should contain("Combinations you already scored.")
+
+        val descriptionLabels = Seq(
+          "Dice still available to draw after discards.",
+          "Dice you can select this turn.",
+          "Dice chosen to play or discard.",
+          "Rolled dice that form the current combination.",
+          "Picked dice waiting for the next reroll.",
+          "Best current combo before die bonuses.",
+          "Combinations you already scored."
+        ).map(text => labels(gui).find(_.getText == text).getOrElse(fail(s"Label not found: $text")))
+
+        descriptionLabels.foreach { label =>
+          label.getForeground shouldBe new Color(80, 80, 80)
+          label.getHorizontalAlignment shouldBe SwingConstants.CENTER
+        }
     }
 
     "render multiple locked rows on separate lines" in withGui { (controller, gui) =>
@@ -576,7 +612,7 @@ class GuiTest extends AnyWordSpec with Matchers:
 
         labels(gui).map(_.getText) should contain("Nothing to undo")
 
-        click(firstButtonStartingWith(gui, "[d"))
+        click(firstEnabledButtonStartingWith(gui, "[d"))
 
         val labelTexts = labels(gui).map(_.getText)
 

@@ -71,9 +71,14 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       s.rerolls shouldBe 4
       s.totalRerolls shouldBe 4
       s.plays shouldBe 6
-      s.targetScore shouldBe 5000
+      s.targetScore shouldBe 1000
       s.score shouldBe 0
-      s.bag.size shouldBe 24
+      s.bag.size shouldBe 35
+      s.bag.groupBy(_.bonusType).view.mapValues(_.size).toMap shouldBe Map(
+        BonusType.None -> 15,
+        BonusType.Chips -> 10,
+        BonusType.Mult -> 10
+      )
     }
 
     "start and move from Draw to Select" in {
@@ -84,7 +89,97 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       controller.isRunning shouldBe true
       controller.state.phase shouldBe Phase.Select
       controller.state.availableDice.size shouldBe 8
-      controller.state.bag.size shouldBe 16
+      controller.state.bag.size shouldBe 27
+    }
+
+    "advance to Lose when bag and usable dice are exhausted" in {
+      val controller = new GameController()
+      setState(controller, state(phase = Phase.Draw, bag = Nil, availableDice = Nil))
+
+      controller.start()
+
+      controller.state.phase shouldBe Phase.Lose
+      controller.viewState.isLose shouldBe true
+    }
+
+    "not lose while selected dice can still be played" in {
+      val controller = new GameController()
+      setState(
+        controller,
+        state(
+          phase = Phase.Select,
+          bag = Nil,
+          availableDice = Nil,
+          selectedDice = List(plainDie)
+        )
+      )
+
+      controller.handle(GameCommand.PlaySelected).isRight shouldBe true
+
+      controller.state.phase shouldBe Phase.PickOut
+      controller.state.diceInPlay should not be empty
+    }
+
+    "not lose while hand dice remain even if the bag is empty" in {
+      val controller = new GameController()
+      setState(controller, state(phase = Phase.Select, bag = Nil, availableDice = List(plainDie)))
+
+      controller.start()
+
+      controller.state.phase shouldBe Phase.Select
+    }
+
+    "not lose while to-roll dice can still be rerolled" in {
+      val controller = new GameController()
+      setState(
+        controller,
+        state(
+          phase = Phase.PickOut,
+          bag = Nil,
+          availableDice = Nil,
+          diceToRoll = List(RolledDie(plainDie, 3))
+        )
+      )
+
+      controller.start()
+
+      controller.state.phase shouldBe Phase.PickOut
+    }
+
+    "advance to Lose when discard empties the last dice and bag" in {
+      val controller = new GameController()
+      setState(
+        controller,
+        state(
+          phase = Phase.Select,
+          bag = Nil,
+          availableDice = Nil,
+          selectedDice = List(plainDie),
+          discards = 1
+        )
+      )
+
+      controller.handle(GameCommand.Discard).isRight shouldBe true
+
+      controller.state.phase shouldBe Phase.Lose
+    }
+
+    "prefer Win over the exhausted dice lose condition" in {
+      val controller = new GameController()
+      setState(
+        controller,
+        state(
+          phase = Phase.EndEval,
+          bag = Nil,
+          availableDice = Nil,
+          score = 1000,
+          targetScore = 1000
+        )
+      )
+
+      controller.start()
+
+      controller.state.phase shouldBe Phase.Win
     }
 
     "notify observers on start" in {
@@ -555,6 +650,7 @@ class GameControllerTest extends AnyWordSpec with Matchers:
         controller,
         state(
           phase = Phase.Select,
+          bag = List(chipDie, plainDie),
           availableDice = List(plainDie, chipDie, multDie),
           selectedDice = List(chipDie),
           diceInPlay = List(RolledDie(plainDie, 5)),
@@ -569,6 +665,8 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       view.targetScore shouldBe 1000
       view.score shouldBe 43
       view.phase shouldBe "Select"
+      view.bag should contain("0:[d1-6:+2C]")
+      view.bag should contain("1:[d1-6]")
       view.hand should contain("0:[d1-6]")
       view.hand should contain("1:[d1-6:+2C]")
       view.hand should contain("2:[d1-6:+2M]")
@@ -580,6 +678,8 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       view.currentBaseChips shouldBe 30
       view.currentBaseMult shouldBe 1
       view.currentCombinationText shouldBe "Fives\nBaseScore x BaseMult\n30 x 1"
+      view.bagDice.head.bonusType shouldBe BonusType.Chips
+      view.bagDice.head.tooltip shouldBe "Bonus: +2 Chips"
       view.isWin shouldBe false
       view.isLose shouldBe false
     }
@@ -625,6 +725,7 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       setState(
         controller,
         state(
+          bag = List(plainDie),
           availableDice = List(chipDie),
           selectedDice = List(multDie),
           diceInPlay = List(RolledDie(chipDie, 5)),
@@ -634,10 +735,15 @@ class GameControllerTest extends AnyWordSpec with Matchers:
 
       val view = controller.viewState
 
+      view.bag shouldBe List("0:[d1-6]")
       view.hand shouldBe List("0:[d1-6:+2C]")
       view.selected shouldBe List("0:[d1-6:+2M]")
       view.inPlay shouldBe List("0:[5:+2C]")
       view.toRoll shouldBe List("0:[3:+2M]")
+
+      view.bagDice.head.bonusType shouldBe BonusType.None
+      view.bagDice.head.guiText shouldBe "[d1-6]"
+      view.bagDice.head.tooltip shouldBe "Bonus: none"
 
       view.handDice.head.bonusType shouldBe BonusType.Chips
       view.handDice.head.bonusValue shouldBe 2

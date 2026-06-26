@@ -35,6 +35,8 @@ case class GameViewState(
     lockedRows: List[String],
     isWin: Boolean,
     isLose: Boolean,
+    bag: List[String] = Nil,
+    bagDice: List[DieView] = Nil,
     handDice: List[DieView] = Nil,
     selectedDiceViews: List[DieView] = Nil,
     inPlayDice: List[DieView] = Nil,
@@ -89,6 +91,7 @@ class GameController(
     currentState
 
   def viewState: GameViewState =
+    val bagDice = currentState.bag.zipWithIndex.map((die, index) => dieView(index, die))
     val handDice = currentState.availableDice.zipWithIndex.map((die, index) => dieView(index, die))
     val selectedDice = currentState.selectedDice.zipWithIndex.map((die, index) => dieView(index, die))
     val inPlayDice = currentState.diceInPlay.zipWithIndex.map((die, index) => rolledDieView(index, die))
@@ -110,6 +113,8 @@ class GameController(
       lockedRows = currentState.lockedRows.zipWithIndex.map((r, i) => s"${i + 1}. ${r.combination} -> ${r.score}"),
       isWin = currentState.phase == Phase.Win,
       isLose = currentState.phase == Phase.Lose,
+      bag = bagDice.map(_.text),
+      bagDice = bagDice,
       handDice = handDice,
       selectedDiceViews = selectedDice,
       inPlayDice = inPlayDice,
@@ -288,17 +293,27 @@ class GameController(
     notifyObservers()
 
   private def advance(state: GameState): GameState =
-    var s = state
-    var continue = true
-
-    while continue do
+    @scala.annotation.tailrec
+    def loop(s: GameState): GameState =
       val phaseState = PhaseState.forPhase(s.phase)
-      if phaseState.isAutomatic then
-        s = phaseState.advance(s, drawDice, rollDice)
-      else
-        continue = false
+      val next =
+        if phaseState.isAutomatic then phaseState.advance(s, drawDice, rollDice)
+        else s
 
-    s
+      if shouldLoseBecauseDiceAreExhausted(next) then next.copy(phase = Phase.Lose)
+      else if phaseState.isAutomatic then loop(next)
+      else next
+
+    loop(state)
+
+  private def shouldLoseBecauseDiceAreExhausted(state: GameState): Boolean =
+    state.phase != Phase.Win &&
+      state.phase != Phase.Lose &&
+      state.bag.isEmpty &&
+      state.availableDice.isEmpty &&
+      state.selectedDice.isEmpty &&
+      state.diceInPlay.isEmpty &&
+      state.diceToRoll.isEmpty
 
   private def dieView(index: Int, die: Die): DieView =
     val text = dieText(die)
@@ -335,7 +350,7 @@ object GameController:
     val mult = DieFactory.mult(2)
 
     GameState(
-      bag = Random.shuffle(List.fill(14)(plain) ++ List.fill(6)(chips) ++ List.fill(4)(mult)),
+      bag = Random.shuffle(List.fill(15)(plain) ++ List.fill(10)(chips) ++ List.fill(10)(mult)),
       availableDice = Nil,
       maxAvailableDice = 8,
       selectedDice = Nil,
@@ -347,7 +362,7 @@ object GameController:
       rerolls = 4,
       totalRerolls = 4,
       plays = 6,
-      targetScore = 5000,
+      targetScore = 1000,
       score = 0,
       phase = Phase.Draw
     )
