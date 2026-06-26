@@ -23,6 +23,12 @@ Run the game:
 sbt run
 ```
 
+Choose XML persistence instead of the default JSON persistence:
+
+```bash
+sbt -Dcubatro.fileio=xml run
+```
+
 Run the test suite:
 
 ```bash
@@ -58,7 +64,11 @@ reroll / r
 score / s
 undo / u
 redo
+save [path]
+load [path]
 ```
+
+Without a path, `save` and `load` use `cubatro-save.json` with JSON persistence or `cubatro-save.xml` with XML persistence.
 
 The game ends when the player reaches the target score or runs out of plays.
 

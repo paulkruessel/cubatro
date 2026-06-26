@@ -1,10 +1,12 @@
 import controller.*
+import fileio.XmlFileIO
 import model.*
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import view.Tui
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.nio.file.Files
 import scala.collection.mutable.ListBuffer
 import scala.util.Success
 
@@ -105,12 +107,26 @@ class TuiTest extends AnyWordSpec with Matchers:
       tui.parse("u") shouldBe GameCommand.Undo
 
       tui.parse("redo") shouldBe GameCommand.Redo
+      tui.parse("save") shouldBe GameCommand.Save(controller.defaultSavePath)
+      tui.parse("save Saves/MyGame.JSON") shouldBe GameCommand.Save("Saves/MyGame.JSON")
+      tui.parse("load") shouldBe GameCommand.Load(controller.defaultSavePath)
+      tui.parse("l") shouldBe GameCommand.Load(controller.defaultSavePath)
+      tui.parse("load Saves/MyGame.JSON") shouldBe GameCommand.Load("Saves/MyGame.JSON")
 
       tui.parse("select 0 1 2") shouldBe GameCommand.Select(List(0, 1, 2))
       tui.parse("select 0,1,2") shouldBe GameCommand.Select(List(0, 1, 2))
       tui.parse("pick 0 2") shouldBe GameCommand.Pick(List(0, 2))
 
       tui.parse("something unknown") shouldBe GameCommand.Invalid
+    }
+
+    "use the injected FileIO default path for save and load commands" in {
+      val controller = new GameController(fileIO = new XmlFileIO())
+      val tui = new Tui(controller, () => "q", _ => ())
+
+      controller.defaultSavePath shouldBe "cubatro-save.xml"
+      tui.parse("save") shouldBe GameCommand.Save("cubatro-save.xml")
+      tui.parse("load") shouldBe GameCommand.Load("cubatro-save.xml")
     }
 
     "parse safely" in {
@@ -142,14 +158,20 @@ class TuiTest extends AnyWordSpec with Matchers:
 
       tui.prompt("Select") should include("Select phase")
       tui.prompt("Select") should include("select")
+      tui.prompt("Select") should include("save")
+      tui.prompt("Select") should include("load")
       tui.prompt("Select") should include("quit")
 
       tui.prompt("PickOut") should include("PickOut phase")
       tui.prompt("PickOut") should include("reroll")
       tui.prompt("PickOut") should include("score")
+      tui.prompt("PickOut") should include("save")
+      tui.prompt("PickOut") should include("load")
 
       tui.prompt("Score") should include("Score phase")
       tui.prompt("Score") should include("score")
+      tui.prompt("Score") should include("save")
+      tui.prompt("Score") should include("load")
 
       tui.prompt("Win") should include("Phase Win")
     }
@@ -159,6 +181,8 @@ class TuiTest extends AnyWordSpec with Matchers:
       val tui = new Tui(controller, () => "q", _ => ())
 
       tui.help("Select") should include("Select dice")
+      tui.help("Select") should include("Save")
+      tui.help("Select") should include("Load")
       tui.help("PickOut") should include("pick")
       tui.help("Score") should include("score")
       tui.help("Win") should include("Commands")
@@ -275,6 +299,35 @@ class TuiTest extends AnyWordSpec with Matchers:
 
       output should include("Selected:")
       output should include("Game stopped by player.")
+    }
+
+    "run save command then quit" in {
+      val file = Files.createTempFile("cubatro-tui", ".json")
+
+      try
+        val output = runTuiWithInputs(List(s"save ${file.toString}", "q"))
+
+        output should include(s"Game saved to ${file.toString}.")
+        normalize(output) should include(s"Game saved to ${file.toString}.\n\nSelect phase:")
+        output should include("Game stopped by player.")
+      finally
+        Files.deleteIfExists(file)
+    }
+
+    "run load command then quit" in {
+      val file = Files.createTempFile("cubatro-tui", ".json")
+      val seedController = new GameController()
+      seedController.start()
+      seedController.handle(GameCommand.Select(List(0)))
+      seedController.save(file.toString)
+
+      try
+        val output = runTuiWithInputs(List(s"load ${file.toString}", "q"))
+
+        output should include(s"Game loaded from ${file.toString}.")
+        output should include("Game stopped by player.")
+      finally
+        Files.deleteIfExists(file)
     }
 
     "run and quit" in {
@@ -398,16 +451,16 @@ class TuiTest extends AnyWordSpec with Matchers:
       val output = runTuiWithInputs(List("help", "q"))
 
       normalize(output) should include(
-        "Select phase: select <indices> | discard | play | undo | redo | help | quit\n> Select dice with: select 0 1 2."
+        "Select phase: select <indices> | discard | play | save [path] | load [path] | undo | redo | help | quit\n> Select dice with: select 0 1 2."
       )
-      normalize(output) should include("Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo.\n")
+      normalize(output) should include("Select dice with: select 0 1 2. Then use: play. Save with: save [path]. Load with: load [path]. Undo with: undo. Redo with: redo.\n")
     }
 
     "write a blank line between help output and the next prompt" in {
       val output = normalize(runTuiWithInputs(List("help", "q")))
 
       output should include(
-        "Select dice with: select 0 1 2. Then use: play. Undo with: undo. Redo with: redo.\n\nSelect phase:"
+        "Select dice with: select 0 1 2. Then use: play. Save with: save [path]. Load with: load [path]. Undo with: undo. Redo with: redo.\n\nSelect phase:"
       )
     }
 

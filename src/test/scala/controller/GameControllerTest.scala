@@ -71,7 +71,7 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       s.rerolls shouldBe 4
       s.totalRerolls shouldBe 4
       s.plays shouldBe 6
-      s.targetScore shouldBe 1000
+      s.targetScore shouldBe 5000
       s.score shouldBe 0
       s.bag.size shouldBe 24
     }
@@ -257,7 +257,7 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       controller.start()
 
       controller.handle(GameCommand.Reroll) shouldBe
-        Left("Allowed: select, discard, play, help, quit, undo, redo")
+        Left("Allowed: select, discard, play, save, load, help, quit, undo, redo")
     }
 
     "reject invalid command in Select phase" in {
@@ -394,7 +394,7 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       setState(controller, state(phase = Phase.PickOut))
 
       controller.handle(GameCommand.Discard) shouldBe
-        Left("Allowed: pick, reroll, score, help, quit, undo, redo")
+        Left("Allowed: pick, reroll, score, save, load, help, quit, undo, redo")
     }
 
     "reject invalid command in Score phase" in {
@@ -410,7 +410,7 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       setState(controller, state(phase = Phase.Score))
 
       controller.handle(GameCommand.Select(List(0))) shouldBe
-        Left("Allowed: score, help, quit, undo, redo")
+        Left("Allowed: score, save, load, help, quit, undo, redo")
     }
 
     "score dice and apply cupgrade effect" in {
@@ -761,6 +761,58 @@ class GameControllerTest extends AnyWordSpec with Matchers:
       observer.updates shouldBe updatesBeforeLoad + 1
 
       Files.deleteIfExists(file)
+    }
+
+    "handle save and load game commands through FileIO" in {
+      import fileio.JsonFileIO
+      import java.nio.file.Files
+
+      val controller = new GameController(fileIO = new JsonFileIO())
+      val observer = new CountingObserver
+      controller.add(observer)
+
+      controller.start()
+      controller.handle(GameCommand.Select(List(0, 1)))
+
+      val savedState = controller.state
+      val file = Files.createTempFile("cubatro-controller-command", ".json")
+
+      try
+        controller.handle(GameCommand.Save(file.toString)) shouldBe Right(savedState)
+        controller.handle(GameCommand.Discard)
+
+        controller.state should not equal (savedState)
+
+        val updatesBeforeLoad = observer.updates
+        controller.handle(GameCommand.Load(file.toString)) shouldBe Right(savedState)
+
+        controller.state shouldBe savedState
+        observer.updates shouldBe updatesBeforeLoad + 1
+      finally
+        Files.deleteIfExists(file)
+    }
+
+    "return action errors when save or load commands fail" in {
+      import fileio.JsonFileIO
+      import java.nio.file.Files
+
+      val controller = new GameController(fileIO = new JsonFileIO())
+      controller.start()
+
+      val directory = Files.createTempDirectory("cubatro-controller-command-error")
+      val missingFile = directory.resolve("missing-save.json")
+
+      try
+        controller.handle(GameCommand.Save(directory.toString)) should matchPattern {
+          case Left(message: String) if message.startsWith("Could not save game:") =>
+        }
+
+        controller.handle(GameCommand.Load(missingFile.toString)) should matchPattern {
+          case Left(message: String) if message.startsWith("Could not load game:") =>
+        }
+      finally
+        Files.deleteIfExists(missingFile)
+        Files.deleteIfExists(directory)
     }
 
   }

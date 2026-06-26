@@ -45,9 +45,11 @@ class Gui (controller: IController) extends MainFrame with Observer:
     private val scoreButton = new Button("Score")
     private val undoButton = new Button("Undo")
     private val redoButton = new Button("Redo")
+    private val saveButton = new Button("Save")
+    private val loadButton = new Button("Load")
     private val quitButton = new Button("Quit")
 
-    List(discardButton, playButton, rerollButton, scoreButton, undoButton, redoButton, quitButton)
+    List(discardButton, playButton, rerollButton, scoreButton, undoButton, redoButton, saveButton, loadButton, quitButton)
         .foreach(styleActionButton)
 
     contents = new BorderPanel {
@@ -75,7 +77,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
 
     private def actionPanel: FlowPanel = 
 
-        listenTo(discardButton, playButton, rerollButton, scoreButton, undoButton, redoButton, quitButton)
+        listenTo(discardButton, playButton, rerollButton, scoreButton, undoButton, redoButton, saveButton, loadButton, quitButton)
 
             reactions += {
                 case ButtonClicked(`discardButton`) => handle(GameCommand.Discard)
@@ -84,6 +86,8 @@ class Gui (controller: IController) extends MainFrame with Observer:
                 case ButtonClicked(`scoreButton`)   => handle(GameCommand.ScoreCurrent)
                 case ButtonClicked(`undoButton`)    => handle(GameCommand.Undo)
                 case ButtonClicked(`redoButton`)    => handle(GameCommand.Redo)
+                case ButtonClicked(`saveButton`)    => handle(GameCommand.Save(controller.defaultSavePath))
+                case ButtonClicked(`loadButton`)    => handle(GameCommand.Load(controller.defaultSavePath))
                 case ButtonClicked(`quitButton`)    => handle(GameCommand.Quit); close()
             }
 
@@ -94,13 +98,25 @@ class Gui (controller: IController) extends MainFrame with Observer:
             scoreButton,
             undoButton,
             redoButton,
+            saveButton,
+            loadButton,
             quitButton
         )
 
     private def handle(command: GameCommand): Unit =
         controller.handle(command) match
             case Left(error) => messageLabel.text = error
-            case Right(_) => messageLabel.text = ""
+            case Right(_) =>
+                val state = controller.viewState
+                if state.isWin then messageLabel.text = "You win."
+                else if state.isLose then messageLabel.text = "You lose."
+                else messageLabel.text = successMessage(command).getOrElse("")
+
+    private def successMessage(command: GameCommand): Option[String] =
+        command match
+            case GameCommand.Save(path) => Some(s"Game saved to $path.")
+            case GameCommand.Load(path) => Some(s"Game loaded from $path.")
+            case _                      => None
 
     override def update(): Unit =
         Swing.onEDT {
@@ -124,6 +140,8 @@ class Gui (controller: IController) extends MainFrame with Observer:
             setActionButtonEnabled(scoreButton, state.phase == "PickOut" || state.phase == "Score")
             setActionButtonEnabled(undoButton, true)
             setActionButtonEnabled(redoButton, true)
+            setActionButtonEnabled(saveButton, true)
+            setActionButtonEnabled(loadButton, true)
 
             if state.isWin then 
                 messageLabel.text = "You win."

@@ -130,9 +130,9 @@ class GuiTest extends AnyWordSpec with Matchers:
   "Gui" should {
 
     "render the initial view state" in withGui { (controller, gui) =>
-      val statusText = labels(gui).map(_.getText).find(_.contains("Target: 1000")).getOrElse("")
+      val statusText = labels(gui).map(_.getText).find(_.contains("Target: 5000")).getOrElse("")
 
-      statusText should include("Target: 1000")
+      statusText should include("Target: 5000")
       statusText should include("Score: 0")
       statusText should include("Phase: Select")
       statusText should include("Plays: 6")
@@ -146,7 +146,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     "initialize itself by rendering immediately and keep rows area read-only" in withRawGui { (controller, gui) =>
     val labelTexts = labels(gui).map(_.getText)
 
-    labelTexts.exists(_.contains("Target: 1000")) shouldBe true
+    labelTexts.exists(_.contains("Target: 5000")) shouldBe true
     labelTexts.exists(_.contains("Phase: Select")) shouldBe true
 
     buttons(gui).count(_.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
@@ -160,6 +160,8 @@ class GuiTest extends AnyWordSpec with Matchers:
       button(gui, "Score").isEnabled shouldBe false
       button(gui, "Undo").isEnabled shouldBe true
       button(gui, "Redo").isEnabled shouldBe true
+      button(gui, "Save").isEnabled shouldBe true
+      button(gui, "Load").isEnabled shouldBe true
     }
 
     "select a hand die when a hand button is clicked" in withGui { (controller, gui) =>
@@ -400,6 +402,8 @@ class GuiTest extends AnyWordSpec with Matchers:
       flushEdt()
 
       button(gui, "Play").getBackground shouldBe new Color(46, 125, 50)
+      button(gui, "Save").getBackground shouldBe new Color(46, 125, 50)
+      button(gui, "Load").getBackground shouldBe new Color(46, 125, 50)
       button(gui, "Quit").getBackground shouldBe new Color(46, 125, 50)
 
       val chipsButton = button(gui, "[d1-6:+2C]")

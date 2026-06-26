@@ -6,6 +6,8 @@ import java.nio.file.{Files, Path}
 
 class JsonFileIO extends FileIO:
 
+  override val defaultSavePath: String = "cubatro-save.json"
+
   override def save(gameState: GameState, path: String): Unit =
     Files.writeString(Path.of(path), toJson(gameState), StandardCharsets.UTF_8)
 

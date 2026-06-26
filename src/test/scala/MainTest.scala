@@ -4,7 +4,7 @@ import org.scalatest.matchers.should.Matchers
 import com.google.inject.AbstractModule
 import controller.{GameController, IController}
 import di.{AppInjector, GuiLauncher}
-import fileio.{FileIO, JsonFileIO}
+import fileio.{FileIO, JsonFileIO, XmlFileIO}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import view.{IView, Tui}
 
@@ -27,6 +27,39 @@ class MainTest extends AnyWordSpec with Matchers:
     )
 
   "Main" should {
+
+    "select JsonFileIO from configuration by default" in {
+      configuredFileIOImplementation(properties = Map.empty, environment = Map.empty) shouldBe classOf[JsonFileIO]
+      configuredFileIOImplementation(
+        properties = Map("cubatro.fileio" -> "json"),
+        environment = Map("CUBATRO_FILEIO" -> "xml")
+      ) shouldBe classOf[JsonFileIO]
+    }
+
+    "select XmlFileIO from configuration" in {
+      configuredFileIOImplementation(
+        properties = Map("cubatro.fileio" -> "xml"),
+        environment = Map.empty
+      ) shouldBe classOf[XmlFileIO]
+
+      configuredFileIOImplementation(
+        properties = Map.empty,
+        environment = Map("CUBATRO_FILEIO" -> "xml")
+      ) shouldBe classOf[XmlFileIO]
+
+      configuredFileIOImplementation(
+        properties = Map.empty,
+        environment = Map("CUBATRO_FILE_IO" -> "xml")
+      ) shouldBe classOf[XmlFileIO]
+    }
+
+    "reject unsupported FileIO configuration values" in {
+      val error = intercept[IllegalArgumentException] {
+        fileIOImplementationFor("yaml")
+      }
+
+      error.getMessage should include("Unsupported FileIO format")
+    }
 
     "run the headless branch through the testable helper" in {
       val input = new ByteArrayInputStream("q\n".getBytes("UTF-8"))

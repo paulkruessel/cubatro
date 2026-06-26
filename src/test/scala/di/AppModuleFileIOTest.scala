@@ -28,4 +28,11 @@ class AppModuleFileIOTest extends AnyWordSpec with Matchers:
 
       injector.fileIO shouldBe a [XmlFileIO]
     }
+
+    "allow switching FileIO implementation through the injector factory" in {
+      val injector = AppInjector.create(fileIOImplementation = classOf[XmlFileIO])
+
+      injector.fileIO shouldBe a [XmlFileIO]
+      injector.controller.defaultSavePath shouldBe "cubatro-save.xml"
+    }
   }
