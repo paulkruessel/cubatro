@@ -164,6 +164,18 @@ class GuiTest extends AnyWordSpec with Matchers:
       button(gui, "Load").isEnabled shouldBe true
     }
 
+    "explain action buttons with tooltips" in withGui { (_, gui) =>
+      button(gui, "Discard").getToolTipText should include("Discard the selected dice")
+      button(gui, "Play").getToolTipText should include("Roll the selected dice into play")
+      button(gui, "Reroll").getToolTipText should include("Reroll the dice in To Roll")
+      button(gui, "Score").getToolTipText should include("Score the current In Play dice combination")
+      button(gui, "Undo").getToolTipText should include("Undo the last move")
+      button(gui, "Redo").getToolTipText should include("Redo the last move")
+      button(gui, "Save").getToolTipText should include("Save the current game")
+      button(gui, "Load").getToolTipText should include("Load the saved game")
+      button(gui, "Quit").getToolTipText should include("Quit the game")
+    }
+
     "select a hand die when a hand button is clicked" in withGui { (controller, gui) =>
       val firstDieButton = firstButtonStartingWith(gui, "[d")
 
@@ -433,20 +445,26 @@ class GuiTest extends AnyWordSpec with Matchers:
       val chipsButton = button(gui, "[d1-6:+2C]")
       chipsButton.getBackground shouldBe new Color(33, 150, 243)
       chipsButton.getForeground shouldBe Color.WHITE
-      chipsButton.getToolTipText shouldBe "Bonus: +2 Chips"
+      chipsButton.getToolTipText should include("Select this die")
+      chipsButton.getToolTipText should include("Bonus: +2 Chips")
 
       val multButton = button(gui, "[d1-6:+2M]")
       multButton.getBackground shouldBe new Color(229, 57, 53)
-      multButton.getToolTipText shouldBe "Bonus: +2 Mult"
+      multButton.getToolTipText should include("Select this die")
+      multButton.getToolTipText should include("Bonus: +2 Mult")
 
       val plainButton = button(gui, "[d1-6]")
       plainButton.getBackground shouldBe new Color(238, 238, 238)
       plainButton.getForeground shouldBe Color.BLACK
-      plainButton.getToolTipText shouldBe "Bonus: none"
+      plainButton.getToolTipText should include("Select this die")
+      plainButton.getToolTipText should include("Bonus: none")
 
-      button(gui, "[5]").getToolTipText shouldBe "Bonus: +2 Chips"
-      button(gui, "[6]").getToolTipText shouldBe "Bonus: +2 Mult"
-      button(gui, "[3]").getToolTipText shouldBe "Bonus: +2 Mult"
+      button(gui, "[5]").getToolTipText should include("Pick this rolled die for reroll")
+      button(gui, "[5]").getToolTipText should include("Bonus: +2 Chips")
+      button(gui, "[6]").getToolTipText should include("Pick this rolled die for reroll")
+      button(gui, "[6]").getToolTipText should include("Bonus: +2 Mult")
+      button(gui, "[3]").getToolTipText should include("waiting to be rerolled")
+      button(gui, "[3]").getToolTipText should include("Bonus: +2 Mult")
       buttons(gui).map(_.getText) should not contain "0:[5:+2C]"
       buttons(gui).map(_.getText) should not contain "1:[6:+2M]"
       buttons(gui).map(_.getText) should not contain "0:[3:+2M]"
@@ -511,12 +529,18 @@ class GuiTest extends AnyWordSpec with Matchers:
         val labelTexts = labels(gui).map(_.getText)
 
         labelTexts should contain("Hand")
+        labelTexts should contain("Dice you can select this turn.")
         labelTexts should contain("Selected")
+        labelTexts should contain("Dice chosen to play or discard.")
         labelTexts should contain("In Play")
+        labelTexts should contain("Rolled dice that form the current combination.")
         labelTexts should contain("To Roll")
+        labelTexts should contain("Picked dice waiting for the next reroll.")
         labelTexts should contain("Current Combination")
+        labelTexts should contain("Best current combo before die bonuses.")
         labelTexts should contain("BaseScore x BaseMult")
         labelTexts should contain("Scored Rows")
+        labelTexts should contain("Combinations you already scored.")
     }
 
     "render multiple locked rows on separate lines" in withGui { (controller, gui) =>

@@ -55,18 +55,19 @@ class Gui (controller: IController) extends MainFrame with Observer:
 
     List(discardButton, playButton, rerollButton, scoreButton, undoButton, redoButton, saveButton, loadButton, quitButton)
         .foreach(styleActionButton)
+    addActionTooltips()
 
     contents = new BorderPanel {
         layout(statusLabel) = BorderPanel.Position.North
 
         layout(new BoxPanel(Orientation.Vertical) {
-            contents += new Label("Hand")
+            contents += sectionHeader("Hand", "Dice you can select this turn.")
             contents += handPanel
-            contents += new Label("Selected")
+            contents += sectionHeader("Selected", "Dice chosen to play or discard.")
             contents += selectedPanel
-            contents += new Label("In Play")
+            contents += sectionHeader("In Play", "Rolled dice that form the current combination.")
             contents += inPlayPanel
-            contents += new Label("To Roll")
+            contents += sectionHeader("To Roll", "Picked dice waiting for the next reroll.")
             contents += toRollPanel
             contents += scoreInfoPanel
             contents += messageLabel
@@ -106,14 +107,20 @@ class Gui (controller: IController) extends MainFrame with Observer:
             quitButton
         )
 
+    private def sectionHeader(title: String, description: String): BoxPanel =
+        new BoxPanel(Orientation.Vertical) {
+            contents += new Label(title)
+            contents += new Label(description)
+        }
+
     private def scoreInfoPanel: GridPanel =
         new GridPanel(1, 2) {
             contents += new BoxPanel(Orientation.Vertical) {
-                contents += new Label("Current Combination")
+                contents += sectionHeader("Current Combination", "Best current combo before die bonuses.")
                 contents += currentCombinationPanel
             }
             contents += new BoxPanel(Orientation.Vertical) {
-                contents += new Label("Scored Rows")
+                contents += sectionHeader("Scored Rows", "Combinations you already scored.")
                 contents += new ScrollPane(lockedRowsArea)
             }
         }
@@ -153,6 +160,26 @@ class Gui (controller: IController) extends MainFrame with Observer:
             case GameCommand.Load(path) => Some(s"Game loaded from $path.")
             case _                      => None
 
+    private def addActionTooltips(): Unit =
+        discardButton.tooltip =
+            "Discard the selected dice, spend one discard, and draw replacement dice into your hand."
+        playButton.tooltip =
+            "Roll the selected dice into play. Then pick dice to reroll or score the current combination."
+        rerollButton.tooltip =
+            "Reroll the dice in To Roll, spend one reroll, and return them to In Play."
+        scoreButton.tooltip =
+            "Score the current In Play dice combination, add it to Scored Rows, and spend one play."
+        undoButton.tooltip =
+            "Undo the last move that changed the game state."
+        redoButton.tooltip =
+            "Redo the last move that was undone."
+        saveButton.tooltip =
+            s"Save the current game to ${controller.defaultSavePath}."
+        loadButton.tooltip =
+            s"Load the saved game from ${controller.defaultSavePath}."
+        quitButton.tooltip =
+            "Quit the game and close the window."
+
     override def update(): Unit =
         Swing.onEDT {
             val state = controller.viewState
@@ -160,10 +187,30 @@ class Gui (controller: IController) extends MainFrame with Observer:
             statusLabel.text =
                 s"Target: ${state.targetScore} | Score: ${state.score} | Phase: ${state.phase} | Plays: ${state.plays} | Rerolls: ${state.rerolls} | Discards: ${state.discards}"
 
-            updateDicePanel(handPanel, state.handDice, index => Some(GameCommand.Select(List(index))))
-            updateDicePanel(selectedPanel, state.selectedDiceViews, _ => None)
-            updateDicePanel(inPlayPanel, state.inPlayDice, index => Some(GameCommand.Pick(List(index))))
-            updateDicePanel(toRollPanel, state.toRollDice, _ => None)
+            updateDicePanel(
+                handPanel,
+                state.handDice,
+                index => Some(GameCommand.Select(List(index))),
+                die => s"Select this die and move it from Hand to Selected. ${die.tooltip}."
+            )
+            updateDicePanel(
+                selectedPanel,
+                state.selectedDiceViews,
+                _ => None,
+                die => s"This die is selected and will be played or discarded. ${die.tooltip}."
+            )
+            updateDicePanel(
+                inPlayPanel,
+                state.inPlayDice,
+                index => Some(GameCommand.Pick(List(index))),
+                die => s"Pick this rolled die for reroll and move it to To Roll. ${die.tooltip}."
+            )
+            updateDicePanel(
+                toRollPanel,
+                state.toRollDice,
+                _ => None,
+                die => s"This die is waiting to be rerolled. Press Reroll to roll it again. ${die.tooltip}."
+            )
 
             currentCombinationValueLabel.text = state.currentCombination
             baseScoreValueLabel.text = state.currentBaseChips.toString
@@ -196,13 +243,14 @@ class Gui (controller: IController) extends MainFrame with Observer:
     private def updateDicePanel(
         panel: FlowPanel,
         dice: List[DieView],
-        commandForIndex: Int => Option[GameCommand]
+        commandForIndex: Int => Option[GameCommand],
+        tooltipForDie: DieView => String
     ): Unit =
         panel.contents.clear()
 
         dice.zipWithIndex.foreach { case (die, index) =>
             val button = new Button(die.guiText)
-            button.tooltip = die.tooltip
+            button.tooltip = tooltipForDie(die)
             val command = commandForIndex(index)
             setDieButtonEnabled(button, die, command.isDefined)
             panel.contents += button
