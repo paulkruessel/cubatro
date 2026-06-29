@@ -4,7 +4,7 @@ import controller.*
 import model.BonusType
 import util.Observer
 
-import java.awt.Color
+import java.awt.{Color, GridLayout}
 import javax.swing.{BorderFactory, SwingConstants, UIManager}
 import scala.swing.*
 import scala.swing.event.*
@@ -14,15 +14,23 @@ class Gui (controller: IController) extends MainFrame with Observer:
     title = "Cubatro"
     preferredSize = new Dimension(1000, 700)
 
-    private val statusLabel = new Label
-    private val bagPanel = new FlowPanel()
+    private val bagPanel = new GridPanel(0, 10) {
+        peer.setLayout(new GridLayout(0, 10, 6, 6))
+        preferredSize = new Dimension(960, 92)
+    }
     private val handPanel = new FlowPanel()
-    private val selectedPanel = new FlowPanel()
     private val inPlayPanel = new FlowPanel()
-    private val toRollPanel = new FlowPanel()
+    private val targetInfoLabel = new Label("Target: 0")
+    private val scoreInfoLabel = new Label("Score: 0")
+    private val playsInfoLabel = new Label("Plays: 0")
+    private val rerollsInfoLabel = new Label("Rerolls: 0")
+    private val discardsInfoLabel = new Label("Discards: 0")
+    private val currentCombinationTitleLabel = new Label("Current Combination:")
     private val currentCombinationValueLabel = new Label("-")
+    private val baseScoreTitleLabel = new Label("BaseScore x BaseMult")
     private val baseScoreValueLabel = new Label("0")
     private val baseMultValueLabel = new Label("0")
+    private val phaseInfoLabel = new Label("Phase: -")
     private val lockedRowsArea = new TextArea {
         editable = false
         rows = 8
@@ -41,7 +49,13 @@ class Gui (controller: IController) extends MainFrame with Observer:
     private val enabledDarkForeground = Color.BLACK
     private val disabledForeground = new Color(220, 220, 220)
     private val descriptionForeground = new Color(80, 80, 80)
+    private val playsForeground = new Color(25, 118, 210)
     private val panelBorderColor = new Color(120, 120, 120)
+    private val regularDieBorder = BorderFactory.createLineBorder(new Color(0, 0, 0, 0), 3)
+    private val highlightedDieBorderColor = new Color(251, 192, 45)
+    private val highlightedDieBorder = BorderFactory.createLineBorder(highlightedDieBorderColor, 3)
+    private var selectedHandSlots: List[Int] = Nil
+    private var pickedInPlaySlots: List[Int] = Nil
 
     UIManager.put("Button.disabledText", disabledForeground)
 
@@ -58,21 +72,16 @@ class Gui (controller: IController) extends MainFrame with Observer:
     List(discardButton, playButton, rerollButton, scoreButton, undoButton, redoButton, saveButton, loadButton, quitButton)
         .foreach(styleActionButton)
     addActionTooltips()
+    styleInfoLabels()
 
     contents = new BorderPanel {
-        layout(statusLabel) = BorderPanel.Position.North
-
         layout(new BoxPanel(Orientation.Vertical) {
             contents += sectionHeader("Bag", "Dice still available to draw after discards.")
             contents += bagPanel
-            contents += sectionHeader("Hand", "Dice you can select this turn.")
+            contents += sectionHeader("Hand", "Available dice. Yellow border means selected to play or discard.")
             contents += handPanel
-            contents += sectionHeader("Selected", "Dice chosen to play or discard.")
-            contents += selectedPanel
-            contents += sectionHeader("In Play", "Rolled dice that form the current combination.")
+            contents += sectionHeader("In Play", "Rolled dice in your combo. Yellow border means picked for reroll.")
             contents += inPlayPanel
-            contents += sectionHeader("To Roll", "Picked dice waiting for the next reroll.")
-            contents += toRollPanel
             contents += scoreInfoPanel
             contents += messageLabel
         }) = BorderPanel.Position.Center
@@ -126,6 +135,70 @@ class Gui (controller: IController) extends MainFrame with Observer:
         panel.peer.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT)
         panel
 
+    private case class DiceButtonEntry(
+        die: DieView,
+        command: Option[GameCommand],
+        tooltip: String,
+        highlighted: Boolean = false,
+        onSuccess: () => Unit = () => ()
+    )
+
+    private def visibleDiceEntries(
+        availableDice: List[DieView],
+        highlightedDice: List[DieView],
+        rememberedSlots: List[Int],
+        commandForAvailableIndex: Int => GameCommand,
+        tooltipForAvailableDie: DieView => String,
+        tooltipForHighlightedDie: DieView => String,
+        onAvailableSuccess: (Int, Int) => Unit
+    ): List[DiceButtonEntry] =
+        val total = availableDice.length + highlightedDice.length
+        val highlightedSlots = normalizedSlots(rememberedSlots, highlightedDice.length, total)
+        val highlightedBySlot = highlightedSlots.zip(highlightedDice).toMap
+        var availableIndex = 0
+
+        (0 until total).toList.map { slot =>
+            highlightedBySlot.get(slot) match
+                case Some(die) =>
+                    DiceButtonEntry(
+                        die,
+                        None,
+                        tooltipForHighlightedDie(die),
+                        highlighted = true
+                    )
+                case None =>
+                    val die = availableDice(availableIndex)
+                    val index = availableIndex
+                    availableIndex += 1
+                    DiceButtonEntry(
+                        die,
+                        Some(commandForAvailableIndex(index)),
+                        tooltipForAvailableDie(die),
+                        onSuccess = () => onAvailableSuccess(slot, highlightedDice.length)
+                    )
+        }
+
+    private def normalizedSlots(slots: List[Int], highlightedCount: Int, total: Int): List[Int] =
+        val validSlots = slots.foldLeft(List.empty[Int]) { (kept, slot) =>
+            if slot >= 0 && slot < total && !kept.contains(slot) then kept :+ slot
+            else kept
+        }
+        val remembered = validSlots.take(highlightedCount)
+        val missing = highlightedCount - remembered.length
+        val fallback = (0 until total).reverse.filterNot(remembered.contains).take(missing).reverse
+
+        remembered ++ fallback
+
+    private def rememberSelectedHandSlot(slot: Int, selectedCountBefore: Int): Unit =
+        selectedHandSlots =
+            if selectedCountBefore == 0 then List(slot)
+            else selectedHandSlots.take(selectedCountBefore) :+ slot
+
+    private def rememberPickedInPlaySlot(slot: Int, pickedCountBefore: Int): Unit =
+        pickedInPlaySlots =
+            if pickedCountBefore == 0 then List(slot)
+            else pickedInPlaySlots.take(pickedCountBefore) :+ slot
+
     private def scoreInfoPanel: GridPanel =
         new GridPanel(1, 2) {
             contents += new BoxPanel(Orientation.Vertical) {
@@ -141,13 +214,20 @@ class Gui (controller: IController) extends MainFrame with Observer:
     private def currentCombinationPanel: BoxPanel =
         new BoxPanel(Orientation.Vertical) {
             peer.setBorder(BorderFactory.createLineBorder(panelBorderColor))
+            contents += targetInfoLabel
+            contents += scoreInfoLabel
+            contents += playsInfoLabel
+            contents += rerollsInfoLabel
+            contents += discardsInfoLabel
+            contents += currentCombinationTitleLabel
             contents += currentCombinationValueLabel
-            contents += new Label("BaseScore x BaseMult")
+            contents += baseScoreTitleLabel
             contents += new FlowPanel(
                 valuePanel(baseScoreValueLabel),
                 new Label("x"),
                 valuePanel(baseMultValueLabel)
             )
+            contents += phaseInfoLabel
         }
 
     private def valuePanel(label: Label): BorderPanel =
@@ -158,14 +238,17 @@ class Gui (controller: IController) extends MainFrame with Observer:
             layout(label) = BorderPanel.Position.Center
         }
 
-    private def handle(command: GameCommand): Unit =
+    private def handle(command: GameCommand): Boolean =
         controller.handle(command) match
-            case Left(error) => messageLabel.text = error
+            case Left(error) =>
+                messageLabel.text = error
+                false
             case Right(_) =>
                 val state = controller.viewState
                 if state.isWin then messageLabel.text = "You win."
                 else if state.isLose then messageLabel.text = "You lose."
                 else messageLabel.text = successMessage(command).getOrElse("")
+                true
 
     private def successMessage(command: GameCommand): Option[String] =
         command match
@@ -179,7 +262,7 @@ class Gui (controller: IController) extends MainFrame with Observer:
         playButton.tooltip =
             "Roll the selected dice into play. Then pick dice to reroll or score the current combination."
         rerollButton.tooltip =
-            "Reroll the dice in To Roll, spend one reroll, and return them to In Play."
+            "Reroll the yellow-highlighted In Play dice and spend one reroll."
         scoreButton.tooltip =
             "Score the current In Play dice combination, add it to Scored Rows, and spend one play."
         undoButton.tooltip =
@@ -193,42 +276,67 @@ class Gui (controller: IController) extends MainFrame with Observer:
         quitButton.tooltip =
             "Quit the game and close the window."
 
+    private def styleInfoLabels(): Unit =
+        List(
+            targetInfoLabel,
+            scoreInfoLabel,
+            playsInfoLabel,
+            rerollsInfoLabel,
+            discardsInfoLabel,
+            currentCombinationTitleLabel,
+            currentCombinationValueLabel,
+            baseScoreTitleLabel,
+            phaseInfoLabel
+        ).foreach(_.peer.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT))
+
+        playsInfoLabel.foreground = playsForeground
+        rerollsInfoLabel.foreground = actionBackground
+        discardsInfoLabel.foreground = multBackground
+
     override def update(): Unit =
         Swing.onEDT {
             val state = controller.viewState
 
-            statusLabel.text =
-                s"Target: ${state.targetScore} | Score: ${state.score} | Phase: ${state.phase} | Plays: ${state.plays} | Rerolls: ${state.rerolls} | Discards: ${state.discards}"
+            targetInfoLabel.text = s"Target: ${state.targetScore}"
+            scoreInfoLabel.text = s"Score: ${state.score}"
+            playsInfoLabel.text = s"Plays: ${state.plays}"
+            rerollsInfoLabel.text = s"Rerolls: ${state.rerolls}"
+            discardsInfoLabel.text = s"Discards: ${state.discards}"
+            phaseInfoLabel.text = s"Phase: ${state.phase}"
 
             updateDicePanel(
                 bagPanel,
-                state.bagDice,
-                _ => None,
-                die => s"This die is still in the bag and may be drawn later. ${die.tooltip}."
+                state.bagDice.map(die =>
+                    DiceButtonEntry(
+                        die,
+                        None,
+                        s"This die is still in the bag and may be drawn later. ${die.tooltip}."
+                    )
+                )
             )
             updateDicePanel(
                 handPanel,
-                state.handDice,
-                index => Some(GameCommand.Select(List(index))),
-                die => s"Select this die and move it from Hand to Selected. ${die.tooltip}."
-            )
-            updateDicePanel(
-                selectedPanel,
-                state.selectedDiceViews,
-                _ => None,
-                die => s"This die is selected and will be played or discarded. ${die.tooltip}."
+                visibleDiceEntries(
+                    state.handDice,
+                    state.selectedDiceViews,
+                    selectedHandSlots,
+                    index => GameCommand.Select(List(index)),
+                    die => s"Select this die. Selected dice stay in Hand with a yellow border. ${die.tooltip}.",
+                    die => s"This die is selected and will be played or discarded. ${die.tooltip}.",
+                    rememberSelectedHandSlot
+                )
             )
             updateDicePanel(
                 inPlayPanel,
-                state.inPlayDice,
-                index => Some(GameCommand.Pick(List(index))),
-                die => s"Pick this rolled die for reroll and move it to To Roll. ${die.tooltip}."
-            )
-            updateDicePanel(
-                toRollPanel,
-                state.toRollDice,
-                _ => None,
-                die => s"This die is waiting to be rerolled. Press Reroll to roll it again. ${die.tooltip}."
+                visibleDiceEntries(
+                    state.inPlayDice,
+                    state.toRollDice,
+                    pickedInPlaySlots,
+                    index => GameCommand.Pick(List(index)),
+                    die => s"Pick this rolled die for reroll. Picked dice stay in In Play with a yellow border. ${die.tooltip}.",
+                    die => s"This die is picked for reroll. Press Reroll to roll all yellow-highlighted dice again. ${die.tooltip}.",
+                    rememberPickedInPlaySlot
+                )
             )
 
             currentCombinationValueLabel.text = state.currentCombination
@@ -260,25 +368,24 @@ class Gui (controller: IController) extends MainFrame with Observer:
         }
 
     private def updateDicePanel(
-        panel: FlowPanel,
-        dice: List[DieView],
-        commandForIndex: Int => Option[GameCommand],
-        tooltipForDie: DieView => String
+        panel: Panel,
+        entries: List[DiceButtonEntry]
     ): Unit =
-        panel.contents.clear()
+        panel.peer.removeAll()
 
-        dice.zipWithIndex.foreach { case (die, index) =>
-            val button = new Button(die.guiText)
-            button.tooltip = tooltipForDie(die)
-            val command = commandForIndex(index)
-            setDieButtonEnabled(button, die, command.isDefined)
-            panel.contents += button
+        entries.foreach { entry =>
+            val button = new Button(entry.die.guiText)
+            button.tooltip = entry.tooltip
+            setDieButtonEnabled(button, entry.die, entry.command.isDefined, entry.highlighted)
+            panel.peer.add(button.peer)
 
-            command match
+            entry.command match
                 case Some(command) =>
                     listenTo(button)
                     reactions += {
-                        case ButtonClicked(`button`) => handle(command)
+                        case ButtonClicked(`button`) =>
+                            entry.onSuccess()
+                            handle(command)
                     }
                 case None => ()
         }
@@ -296,11 +403,12 @@ class Gui (controller: IController) extends MainFrame with Observer:
         button.background = if isEnabled then actionBackground else disabledActionBackground
         button.foreground = if isEnabled then enabledLightForeground else disabledForeground
 
-    private def setDieButtonEnabled(button: Button, die: DieView, isEnabled: Boolean): Unit =
+    private def setDieButtonEnabled(button: Button, die: DieView, isEnabled: Boolean, highlighted: Boolean = false): Unit =
         button.peer.setOpaque(true)
         button.peer.setContentAreaFilled(true)
         button.enabled = isEnabled
         button.background = dieBackground(die, isEnabled)
+        button.peer.setBorder(if highlighted then highlightedDieBorder else regularDieBorder)
         button.foreground =
             if isEnabled && die.bonusType == BonusType.None then enabledDarkForeground
             else if isEnabled then enabledLightForeground

@@ -7,6 +7,7 @@ import org.scalatest.matchers.should.Matchers
 
 import java.awt.{Color, Component as AwtComponent, Container as AwtContainer, GraphicsEnvironment}
 import javax.swing.{JButton, JLabel, JTextArea, SwingConstants, SwingUtilities}
+import javax.swing.border.LineBorder
 import scala.swing.*
 
 class GuiTest extends AnyWordSpec with Matchers:
@@ -91,6 +92,11 @@ class GuiTest extends AnyWordSpec with Matchers:
       fail(s"Enabled button starting with '$prefix' not found. Existing buttons: ${buttons(gui).map(_.getText).mkString(", ")}")
     )
 
+  private def lineBorder(button: JButton): LineBorder =
+    button.getBorder match
+      case border: LineBorder => border
+      case other              => fail(s"Expected a LineBorder, got ${other.getClass.getSimpleName}")
+
   private def click(button: JButton): Unit =
     SwingUtilities.invokeAndWait(() => button.doClick())
     flushEdt()
@@ -135,14 +141,14 @@ class GuiTest extends AnyWordSpec with Matchers:
   "Gui" should {
 
     "render the initial view state" in withGui { (controller, gui) =>
-      val statusText = labels(gui).map(_.getText).find(_.contains("Target: 1000")).getOrElse("")
+      val labelTexts = labels(gui).map(_.getText)
 
-      statusText should include("Target: 1000")
-      statusText should include("Score: 0")
-      statusText should include("Phase: Select")
-      statusText should include("Plays: 6")
-      statusText should include("Rerolls: 4")
-      statusText should include("Discards: 4")
+      labelTexts should contain("Target: 1000")
+      labelTexts should contain("Score: 0")
+      labelTexts should contain("Phase: Select")
+      labelTexts should contain("Plays: 6")
+      labelTexts should contain("Rerolls: 4")
+      labelTexts should contain("Discards: 4")
 
       buttons(gui).count(button => button.isEnabled && button.getText.matches("\\[d1-6.*")) shouldBe controller.viewState.hand.size
       textAreas(gui).head.getText shouldBe "-"
@@ -183,7 +189,7 @@ class GuiTest extends AnyWordSpec with Matchers:
     "explain action buttons with tooltips" in withGui { (_, gui) =>
       button(gui, "Discard").getToolTipText should include("Discard the selected dice")
       button(gui, "Play").getToolTipText should include("Roll the selected dice into play")
-      button(gui, "Reroll").getToolTipText should include("Reroll the dice in To Roll")
+      button(gui, "Reroll").getToolTipText should include("Reroll the yellow-highlighted In Play dice")
       button(gui, "Score").getToolTipText should include("Score the current In Play dice combination")
       button(gui, "Undo").getToolTipText should include("Undo the last move")
       button(gui, "Redo").getToolTipText should include("Redo the last move")
@@ -222,6 +228,27 @@ class GuiTest extends AnyWordSpec with Matchers:
 
       controller.state.selectedDice shouldBe Nil
       controller.state.discards shouldBe 3
+    }
+
+    "keep a selected hand die in its visual slot" in withGui { (controller, gui) =>
+      setState(
+        controller,
+        state(
+          bag = Nil,
+          availableDice = List(chipDie, multDie, plainDie)
+        )
+      )
+
+      gui.update()
+      flushEdt()
+
+      click(button(gui, "[d1-6:+2M]"))
+
+      val handDiceButtons = buttons(gui).filter(_.getText.startsWith("[d1-6"))
+
+      handDiceButtons.map(_.getText) shouldBe Seq("[d1-6:+2C]", "[d1-6:+2M]", "[d1-6]")
+      handDiceButtons(1).isEnabled shouldBe false
+      lineBorder(handDiceButtons(1)).getLineColor shouldBe new Color(251, 192, 45)
     }
 
     "enable PickOut phase buttons correctly" in withGui { (controller, gui) =>
@@ -284,6 +311,33 @@ class GuiTest extends AnyWordSpec with Matchers:
         controller.state.diceToRoll.size shouldBe 1
         controller.state.diceToRoll.head.value shouldBe 4
         button(gui, "Score").isEnabled shouldBe true
+    }
+
+    "keep a picked in-play die in its visual slot" in withGui { (controller, gui) =>
+      setState(
+        controller,
+        state(
+          phase = Phase.PickOut,
+          bag = Nil,
+          availableDice = Nil,
+          diceInPlay = List(
+            RolledDie(chipDie, 5),
+            RolledDie(multDie, 6),
+            RolledDie(plainDie, 4)
+          )
+        )
+      )
+
+      gui.update()
+      flushEdt()
+
+      click(button(gui, "[6]"))
+
+      val inPlayButtons = buttons(gui).filter(button => Seq("[5]", "[6]", "[4]").contains(button.getText))
+
+      inPlayButtons.map(_.getText) shouldBe Seq("[5]", "[6]", "[4]")
+      inPlayButtons(1).isEnabled shouldBe false
+      lineBorder(inPlayButtons(1)).getLineColor shouldBe new Color(251, 192, 45)
     }
 
     "reroll selected to-roll dice when Reroll is clicked" in withGui { (controller, gui) =>
@@ -373,6 +427,7 @@ class GuiTest extends AnyWordSpec with Matchers:
 
       labelTexts should contain("ThreeOfAKind")
       labelTexts should contain("BaseScore x BaseMult")
+      labelTexts should contain("Phase: PickOut")
       labelTexts should contain("45")
       labelTexts should contain("2")
     }
@@ -420,7 +475,7 @@ class GuiTest extends AnyWordSpec with Matchers:
       button(gui, "Score").isEnabled shouldBe false
     }
 
-    "keep display-only dice buttons disabled" in withGui { (controller, gui) =>
+    "highlight selected and picked dice inside their original sections" in withGui { (controller, gui) =>
       setState(
         controller,
         state(
@@ -438,6 +493,10 @@ class GuiTest extends AnyWordSpec with Matchers:
       firstButtonStartingWith(gui, "[d1-6:+2C]").isEnabled shouldBe true
       buttons(gui).find(_.getText == "[3]").exists(_.isEnabled) shouldBe false
       buttons(gui).find(_.getText == "[d1-6]").exists(_.isEnabled) shouldBe false
+      lineBorder(button(gui, "[d1-6]")).getLineColor shouldBe new Color(251, 192, 45)
+      lineBorder(button(gui, "[3]")).getLineColor shouldBe new Color(251, 192, 45)
+      lineBorder(button(gui, "[d1-6]")).getThickness shouldBe 3
+      lineBorder(button(gui, "[3]")).getThickness shouldBe 3
     }
 
     "color action and bonus dice buttons and expose bonus tooltips" in withGui { (controller, gui) =>
@@ -481,7 +540,8 @@ class GuiTest extends AnyWordSpec with Matchers:
       button(gui, "[5]").getToolTipText should include("Bonus: +2 Chips")
       button(gui, "[6]").getToolTipText should include("Pick this rolled die for reroll")
       button(gui, "[6]").getToolTipText should include("Bonus: +2 Mult")
-      button(gui, "[3]").getToolTipText should include("waiting to be rerolled")
+      button(gui, "[3]").getToolTipText should include("picked for reroll")
+      button(gui, "[3]").getToolTipText should include("yellow-highlighted")
       button(gui, "[3]").getToolTipText should include("Bonus: +2 Mult")
       buttons(gui).map(_.getText) should not contain "0:[5:+2C]"
       buttons(gui).map(_.getText) should not contain "1:[6:+2M]"
@@ -512,11 +572,13 @@ class GuiTest extends AnyWordSpec with Matchers:
       selectedPlain.isEnabled shouldBe false
       selectedPlain.getForeground shouldBe new Color(220, 220, 220)
       selectedPlain.getBackground shouldBe new Color(88, 88, 88)
+      lineBorder(selectedPlain).getLineColor shouldBe new Color(251, 192, 45)
 
       val toRollMult = button(gui, "[3]")
       toRollMult.isEnabled shouldBe false
       toRollMult.getForeground shouldBe new Color(220, 220, 220)
       toRollMult.getBackground shouldBe new Color(132, 32, 30)
+      lineBorder(toRollMult).getLineColor shouldBe new Color(251, 192, 45)
     }
 
     "quit through the Quit button" in withGui { (controller, gui) =>
@@ -550,25 +612,34 @@ class GuiTest extends AnyWordSpec with Matchers:
         labelTexts should contain("Bag")
         labelTexts should contain("Dice still available to draw after discards.")
         labelTexts should contain("Hand")
-        labelTexts should contain("Dice you can select this turn.")
-        labelTexts should contain("Selected")
-        labelTexts should contain("Dice chosen to play or discard.")
+        labelTexts should contain("Available dice. Yellow border means selected to play or discard.")
+        labelTexts should not contain "Selected"
+        labelTexts should not contain "Dice chosen to play or discard."
         labelTexts should contain("In Play")
-        labelTexts should contain("Rolled dice that form the current combination.")
-        labelTexts should contain("To Roll")
-        labelTexts should contain("Picked dice waiting for the next reroll.")
+        labelTexts should contain("Rolled dice in your combo. Yellow border means picked for reroll.")
+        labelTexts should not contain "To Roll"
+        labelTexts should not contain "Picked dice waiting for the next reroll."
         labelTexts should contain("Current Combination")
+        labelTexts should contain("Current Combination:")
         labelTexts should contain("Best current combo before die bonuses.")
         labelTexts should contain("BaseScore x BaseMult")
+        labelTexts should contain("Target: 1000")
+        labelTexts should contain("Score: 0")
+        labelTexts should contain("Plays: 6")
+        labelTexts should contain("Rerolls: 4")
+        labelTexts should contain("Discards: 4")
+        labelTexts should contain("Phase: Select")
         labelTexts should contain("Scored Rows")
         labelTexts should contain("Combinations you already scored.")
 
+        labels(gui).find(_.getText == "Plays: 6").get.getForeground shouldBe new Color(25, 118, 210)
+        labels(gui).find(_.getText == "Rerolls: 4").get.getForeground shouldBe new Color(46, 125, 50)
+        labels(gui).find(_.getText == "Discards: 4").get.getForeground shouldBe new Color(229, 57, 53)
+
         val descriptionLabels = Seq(
           "Dice still available to draw after discards.",
-          "Dice you can select this turn.",
-          "Dice chosen to play or discard.",
-          "Rolled dice that form the current combination.",
-          "Picked dice waiting for the next reroll.",
+          "Available dice. Yellow border means selected to play or discard.",
+          "Rolled dice in your combo. Yellow border means picked for reroll.",
           "Best current combo before die bonuses.",
           "Combinations you already scored."
         ).map(text => labels(gui).find(_.getText == text).getOrElse(fail(s"Label not found: $text")))
