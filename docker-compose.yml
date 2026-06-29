@@ -1,0 +1,34 @@
+# docker-compose.yml
+# Convenience wrapper for Linux hosts.
+#
+# Usage:
+#   xhost +local:docker          # run once per desktop session
+#   docker compose up --build    # build and start Cubatro
+#   docker compose down          # remove the stopped container
+#
+# macOS users: use ./docker-run.sh instead, because XQuartz setup needs to be
+# handled before docker run.
+
+services:
+  cubatro:
+    image: cubatro
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cubatro-game
+
+    environment:
+      - DISPLAY=${DISPLAY:-0}
+      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}
+      - CUBATRO_FILEIO=${CUBATRO_FILEIO:-json}
+
+    volumes:
+      # X11 socket for Swing GUI forwardign on Linux
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+
+      # Persistant save files. The apps default save path is relative to the container workdir /home/cubatro/saves
+      - ./saves:/home/cubatro/saves
+
+    stdin_open: true
+    tty: true
+    restart: "no"

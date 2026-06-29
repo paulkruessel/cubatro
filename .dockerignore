@@ -1,7 +1,48 @@
-target
-.bloop
-.metals
-.git
-.DS_Store
-project/target
-project/project/target
+# Build outputs
+target/
+project/target/
+project/project/
+project/project/target/
+
+# IDE / tooling caches
+.bloop/
+.metals/
+.ammonite/
+.idea/
+.vscode/
+*.class
+
+# Git internals and CI config, not needed in the Docker build context
+.git/
+.gitignore
+.github/
+FETCH_HEAD
+
+# Local runtime/save files. Runtime saves are mounted via ./saves.
+saves/
+cubatro-save.json
+cubatro-save.xml
+
+# Local reports / generated metadata
+badges/
+coverage-report/
+target/
+
+# Documentation and local helper files not needed for the compiled artifact
+README.md
+Todo.txt
+*.md
+*.log
+*.sh
+backup_for_coverage/
+sonar-project.properties
+run-sonar.sh
+stryker4s*.conf
+.prettierrc
+.scalafmt.conf
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
+docker-run.sh
