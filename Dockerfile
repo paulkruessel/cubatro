@@ -1,9 +1,7 @@
-FROM sbtscala/scala-sbt:eclipse-temurin-17.0.11_9_1.10.7_3.5.0
+FROM sbtscala/scala-sbt:eclipse-temurin-17_1.x
 
 WORKDIR /cubatro
 
-COPY build.sbt ./
-COPY project ./project
-COPY src ./src
+ADD . /cubatro
 
-CMD ["sbt", "run"]
+CMD sbt run
