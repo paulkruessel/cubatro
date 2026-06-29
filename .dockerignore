@@ -1,0 +1,7 @@
+target
+.bloop
+.metals
+.git
+.DS_Store
+project/target
+project/project/target
